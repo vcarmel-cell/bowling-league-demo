@@ -174,6 +174,46 @@ function renderContent(DB) {
 
   const teamName = id => (DB.teams.find(t => t.id === id) || {}).name || '—';
   const teamColor = id => (DB.teams.find(t => t.id === id) || {}).color || '#94A3B8';
+  const playerName = pid => (DB.players.find(p => p.id === pid) || {}).name || '—';
+  const playerTeamId = pid => (DB.players.find(p => p.id === pid) || {}).teamId || '';
+  const rankClass = i => i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+  const teamCell = pid => playerTeamId(pid) ? `<span class="color-dot" style="background:${teamColor(playerTeamId(pid))}"></span>${teamName(playerTeamId(pid))}` : '—';
+
+  // Round all-stars: top 5 individual series totals from the most recent match date
+  const latestDate = DB.results.length ? DB.results.reduce((max, r) => (r.date > max ? r.date : max), DB.results[0].date) : null;
+  const roundEntries = [];
+  if (latestDate) {
+    DB.results.filter(r => r.date === latestDate).forEach(r => {
+      const pids = new Set();
+      (r.games || []).forEach(g => Object.keys(g.playerScores || {}).forEach(pid => pids.add(pid)));
+      pids.forEach(pid => {
+        const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[pid]) || 0), 0);
+        roundEntries.push({ pid, total });
+      });
+    });
+  }
+  const roundAllStars = roundEntries.sort((a, b) => b.total - a.total).slice(0, 5);
+
+  // All-time single-game high scores (top 3)
+  const singleGameEntries = [];
+  DB.results.forEach(r => (r.games || []).forEach(g => {
+    Object.entries(g.playerScores || {}).forEach(([pid, score]) => {
+      if (score != null) singleGameEntries.push({ pid, score, date: r.date });
+    });
+  }));
+  const topSingleGames = singleGameEntries.sort((a, b) => b.score - a.score).slice(0, 3);
+
+  // All-time series high (top 3)
+  const seriesEntries = [];
+  DB.results.forEach(r => {
+    const pids = new Set();
+    (r.games || []).forEach(g => Object.keys(g.playerScores || {}).forEach(pid => pids.add(pid)));
+    pids.forEach(pid => {
+      const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[pid]) || 0), 0);
+      seriesEntries.push({ pid, total, date: r.date, gamesCount: (r.games || []).length });
+    });
+  });
+  const topSeries = seriesEntries.sort((a, b) => b.total - a.total).slice(0, 3);
 
   const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const recentResults = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
@@ -216,6 +256,53 @@ function renderContent(DB) {
                 <td><strong>${s.avg.toFixed(1)}</strong></td>
                 <td>${s.high}</td>
               </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x2B50; נבחרת המחזור${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ניקוד סדרה</th></tr></thead>
+          <tbody>
+            ${roundAllStars.length ? roundAllStars.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td>${playerName(e.pid)}</td>
+                <td>${teamCell(e.pid)}</td>
+                <td><strong>${e.total}</strong></td>
+              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x1F3AF; שיא אישי למשחק בודד</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ציון</th><th>תאריך</th></tr></thead>
+          <tbody>
+            ${topSingleGames.length ? topSingleGames.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td>${playerName(e.pid)}</td>
+                <td>${teamCell(e.pid)}</td>
+                <td><strong>${e.score}</strong></td>
+                <td>${fmtDate(e.date)}</td>
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x1F3C6; שיא אישי לסדרה</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ציון סדרה</th><th>תאריך</th></tr></thead>
+          <tbody>
+            ${topSeries.length ? topSeries.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td>${playerName(e.pid)}</td>
+                <td>${teamCell(e.pid)}</td>
+                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">(${e.gamesCount} משחקים)</span></td>
+                <td>${fmtDate(e.date)}</td>
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
           </tbody>
         </table></div>
       </div>
