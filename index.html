@@ -10,10 +10,15 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #EFF9FF; color: #
 
 header {
   background: linear-gradient(135deg, #0369A1 0%, #083D5C 100%);
-  color: #fff; padding: 32px 20px; text-align: center;
+  color: #fff; padding: 22px 20px;
   box-shadow: 0 4px 20px rgba(8,61,92,0.2);
 }
-header .brand { font-size: 44px; margin-bottom: 6px; }
+.header-inner { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; text-align: right; }
+header .brand {
+  font-size: 44px; width: 64px; height: 64px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+header .brand img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 header h1 { font-size: 24px; font-weight: 800; }
 header p { font-size: 13px; color: #7DD3FC; margin-top: 4px; }
 
@@ -71,9 +76,13 @@ footer { text-align: center; padding: 20px; color: #7DD3FC; font-size: 12px; }
 <body>
 
 <header>
-  <div class="brand" id="league-logo">&#x1F3B3;</div>
-  <h1 id="league-name">ליגת באולינג (DEMO)</h1>
-  <p>טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת</p>
+  <div class="header-inner">
+    <div class="brand" id="league-logo">&#x1F3B3;</div>
+    <div>
+      <h1 id="league-name">ליגת באולינג (DEMO)</h1>
+      <p>טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת</p>
+    </div>
+  </div>
 </header>
 
 <div class="wrap">
@@ -297,7 +306,7 @@ async function boot() {
         document.title = settings.leagueName + ' — DEMO';
       }
       if (settings.logoData) {
-        document.getElementById('league-logo').innerHTML = `<img src="${settings.logoData}" alt="" style="max-width:64px; max-height:64px; object-fit:contain;">`;
+        document.getElementById('league-logo').innerHTML = `<img src="${settings.logoData}" alt="">`;
       }
     }
     renderContent({
