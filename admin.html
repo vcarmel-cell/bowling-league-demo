@@ -362,6 +362,11 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
       <div class="page-header">
         <div><h1>&#x2699;&#xFE0F; הגדרות</h1><p>קונפיגורציית ענן, סיסמת ניהול, וכללי ניקוד</p></div>
       </div>
+      <div class="card" style="margin-bottom:20px; border-color:#FBBF24;">
+        <h2 style="margin-bottom:14px; font-size:16px;">&#x1F9EA; נתוני דמו</h2>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">יוצר 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), ותוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי). זמין רק בסביבת ה-DEMO הזו.</p>
+        <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; צור נתוני דמו</button>
+      </div>
       <div class="card" style="margin-bottom:20px;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3F7;&#xFE0F; מיתוג הליגה</h2>
         <p style="font-size:13px;color:#64748B;margin-bottom:14px;">שם הליגה והלוגו מוצגים בכותרת האתר הציבורי (עמוד הדירוג) וכאן בממשק הניהול.</p>
@@ -1368,6 +1373,77 @@ function generateAutoSchedule() {
     closeModal('auto-schedule-modal');
     toast(`✅ נוצרה תוכנית עם ${globalRound} מחזורים`);
   }, 'צור תוכנית');
+}
+
+// ─── DEMO SEED DATA (this environment only) ────────────────────
+async function seedDemoData() {
+  confirmAction(
+    'יצירת נתוני דמו',
+    'הפעולה תיצור 10 קבוצות ו-30 שחקנים לדוגמה (עם הנדיקפ ידני אקראי בין 10-65) ותבנה תוכנית משחקים מלאה. להמשיך?',
+    async () => {
+      // 1. Teams — top up to 10, keep any existing teams as-is
+      const existingTeamCount = DB.teams.length;
+      const newTeams = [];
+      for (let i = existingTeamCount; i < 10; i++) {
+        const id = uid('team');
+        newTeams.push({ id, name: `קבוצה ${i + 1}`, color: teamColorForIndex(i), createdAt: new Date().toISOString() });
+      }
+      newTeams.forEach(t => DB.teams.push(t));
+      const seedTeams = DB.teams.slice(0, 10);
+
+      // 2. Players — 3 new players per team, random manual handicap 10-65
+      const newPlayers = [];
+      let seq = DB.players.length + 1;
+      seedTeams.forEach(team => {
+        for (let i = 0; i < 3; i++) {
+          const id = uid('plyr');
+          const manualHandicap = 10 + Math.floor(Math.random() * (65 - 10 + 1));
+          newPlayers.push({ id, name: `שחקן ${seq}`, teamId: team.id, manualHandicap, createdAt: new Date().toISOString() });
+          seq++;
+        }
+      });
+      newPlayers.forEach(p => DB.players.push(p));
+
+      dbSave();
+      renderTeams();
+      renderPlayers();
+      populateTeamSelects();
+
+      try {
+        await Promise.all([
+          ...newTeams.map(t => fbSet('teams', t.id, t)),
+          ...newPlayers.map(p => fbSet('players', p.id, p))
+        ]);
+      } catch(e) {
+        toast('⚠️ חלק מהקבוצות/שחקנים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+        return;
+      }
+
+      // 3. Schedule — single round-robin pass across the 10 teams, weekly from today
+      const rounds = roundRobinRounds(seedTeams.map(t => t.id));
+      const startDate = new Date().toISOString().slice(0, 10);
+      const newSchedule = [];
+      rounds.forEach((pairs, roundIdx) => {
+        const date = addDays(startDate, roundIdx * 7);
+        const roundLabel = `מחזור ${roundIdx + 1}`;
+        pairs.forEach(([teamA, teamB]) => {
+          const id = uid('sched');
+          newSchedule.push({ id, date, time: '', lane: '', round: roundLabel, teamAId: teamA, teamBId: teamB, status: 'scheduled' });
+        });
+      });
+      newSchedule.forEach(s => DB.schedule.push(s));
+      dbSave();
+      renderSchedule();
+
+      try {
+        await Promise.all(newSchedule.map(s => fbSet('schedule', s.id, s)));
+        toast(`✅ נוצרו ${newTeams.length} קבוצות, ${newPlayers.length} שחקנים, ו-${newSchedule.length} משחקים בלוח`);
+      } catch(e) {
+        toast('⚠️ חלק מהמשחקים בלוח לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+      }
+    },
+    'צור נתוני דמו'
+  );
 }
 
 // ─── PRINTABLE RESULTS FORM ────────────────────────────────────
