@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול ליגת באולינג — DEMO</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #EFF9FF; color: #0C4A6E; direction: rtl; }
+
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 225px;
+  background: linear-gradient(180deg, #083D5C 0%, #0C5A84 100%);
+  color: #fff; display: flex; flex-direction: column;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 100;
+  box-shadow: -3px 0 18px rgba(0,0,0,0.18);
+}
+.main { margin-right: 225px; flex: 1; padding: 28px; }
+
+.sidebar-header {
+  padding: 24px 18px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(135deg, #0369A1 0%, #083D5C 100%);
+}
+.sidebar-brand { font-size: 32px; line-height: 1; margin-bottom: 6px; }
+.sidebar-header h2 { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 0.3px; }
+.sidebar-header p { font-size: 11px; color: #7DD3FC; margin-top: 3px; }
+
+.nav { padding: 10px 0; flex: 1; }
+.nav a {
+  display: flex; align-items: center; gap: 11px;
+  padding: 13px 18px; color: #93C5FD; text-decoration: none;
+  font-size: 14px; transition: all 0.15s;
+  border-right: 3px solid transparent; cursor: pointer;
+}
+.nav a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.nav a.active { background: rgba(56,189,248,0.18); color: #fff; border-right-color: #38BDF8; }
+.nav a .icon { font-size: 18px; width: 26px; text-align: center; flex-shrink: 0; }
+
+.sidebar-footer {
+  padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 11px; color: #7DD3FC; text-align: center;
+}
+
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 26px; flex-wrap: wrap; gap: 12px; }
+.page-header h1 { font-size: 26px; font-weight: 800; color: #0C4A6E; }
+.page-header p { color: #0369A1; font-size: 14px; margin-top: 5px; opacity: 0.8; }
+
+.btn {
+  padding: 9px 18px; border: none; border-radius: 9px;
+  font-size: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.15s; font-family: inherit; font-weight: 600;
+}
+.btn-primary { background: linear-gradient(135deg, #0EA5E9, #0284C7); color: #fff; box-shadow: 0 2px 8px rgba(14,165,233,0.35); }
+.btn-primary:hover { background: linear-gradient(135deg, #0284C7, #0369A1); box-shadow: 0 3px 12px rgba(14,165,233,0.4); }
+.btn-danger { background: #EF4444; color: #fff; }
+.btn-danger:hover { background: #DC2626; }
+.btn-secondary { background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; }
+.btn-secondary:hover { background: #BAE6FD; }
+.btn-success { background: linear-gradient(135deg, #10B981, #059669); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.3); }
+.btn-success:hover { background: linear-gradient(135deg, #059669, #047857); }
+.btn-sm { padding: 5px 11px; font-size: 13px; }
+.btn-outline { background: transparent; border: 1.5px solid #0EA5E9; color: #0284C7; }
+.btn-outline:hover { background: #E0F2FE; }
+
+.card {
+  background: #fff; border-radius: 16px;
+  border: 1px solid #BAE6FD; padding: 22px;
+  box-shadow: 0 2px 14px rgba(14,165,233,0.08);
+}
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.stat-card {
+  background: #fff; border-radius: 16px; padding: 20px;
+  border: 1px solid #BAE6FD;
+  box-shadow: 0 2px 12px rgba(14,165,233,0.08);
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; right: 0; left: 0;
+  height: 4px; border-radius: 16px 16px 0 0;
+}
+.stat-card:nth-child(1)::before { background: #38BDF8; }
+.stat-card:nth-child(2)::before { background: #34D399; }
+.stat-card:nth-child(3)::before { background: #F59E0B; }
+.stat-card:nth-child(4)::before { background: #F472B6; }
+.stat-card .stat-icon { font-size: 30px; margin-bottom: 10px; }
+.stat-card .stat-label { font-size: 13px; color: #0369A1; margin-bottom: 6px; font-weight: 500; }
+.stat-card .stat-value { font-size: 28px; font-weight: 800; color: #0C4A6E; }
+.stat-card .stat-sub { font-size: 12px; color: #7DD3FC; margin-top: 4px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: #F0F9FF; text-align: right;
+  padding: 12px 16px; font-size: 13px;
+  font-weight: 700; color: #0369A1; border-bottom: 2px solid #BAE6FD; white-space: nowrap;
+}
+td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #E0F2FE; color: #0C4A6E; white-space: nowrap; }
+tr:hover td { background: #F0F9FF; }
+tr:last-child td { border-bottom: none; }
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(8,61,92,0.5);
+  z-index: 200; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.modal {
+  background: #fff; border-radius: 20px; padding: 28px;
+  width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(8,61,92,0.2);
+  border: 1px solid #BAE6FD;
+}
+.modal h2 { font-size: 20px; margin-bottom: 20px; color: #0C4A6E; font-weight: 800; }
+.modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #0369A1; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+input, select, textarea {
+  width: 100%; padding: 10px 12px; border: 1.5px solid #BAE6FD; border-radius: 9px;
+  font-size: 14px; font-family: inherit; color: #0C4A6E; background: #F8FCFF;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: #0EA5E9; background: #fff; }
+input[type="number"].score-input { text-align: center; padding: 8px 4px; font-weight: 700; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.badge-blue  { background: #E0F2FE; color: #0369A1; }
+.badge-green { background: #D1FAE5; color: #047857; }
+.badge-red   { background: #FEE2E2; color: #B91C1C; }
+.badge-yellow{ background: #FEF3C7; color: #B45309; }
+.badge-gray  { background: #F1F5F9; color: #475569; }
+
+.color-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-left:8px; vertical-align:middle; }
+
+.empty-state { text-align: center; padding: 40px 20px; color: #7DD3FC; }
+.empty-state .empty-icon { font-size: 44px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+.roster-card { margin-bottom: 18px; }
+.roster-card h3 { font-size: 15px; margin-bottom: 12px; color: #0C4A6E; }
+.roster-total-row td { font-weight: 800; background: #F0F9FF; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 24px; z-index: 500;
+  background: #0C4A6E; color: #fff; padding: 12px 20px; border-radius: 10px;
+  font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  opacity: 0; transform: translateY(10px); transition: all 0.2s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+.hidden { display: none !important; }
+.page { display: none; }
+.page.active { display: block; }
+
+#offline-indicator {
+  display: none; position: fixed; top: 14px; left: 14px; z-index: 300;
+  background: #FEF3C7; color: #B45309; padding: 8px 14px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; align-items: center; gap: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+}
+
+@media (max-width: 900px) {
+  .sidebar { width: 58px; }
+  .sidebar-header h2, .sidebar-header p, .sidebar-brand, .nav a span:not(.icon), .sidebar-footer { display: none; }
+  .main { margin-right: 58px; padding: 16px; }
+  .form-row { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ─── PRINTABLE RESULTS FORM ─── */
+#print-area { display: none; }
+.print-form-game { border: 1.5px solid #0C4A6E; border-radius: 10px; padding: 16px; margin-bottom: 24px; page-break-inside: avoid; }
+.print-form-game h3 { font-size: 16px; margin-bottom: 4px; }
+.print-form-game .meta { font-size: 12px; color: #475569; margin-bottom: 12px; }
+.print-form-game table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.print-form-game th, .print-form-game td { border: 1px solid #94A3B8; padding: 8px; font-size: 13px; text-align: center; }
+.print-form-game th:first-child, .print-form-game td:first-child { text-align: right; }
+.print-form-game .score-cell { height: 30px; }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="offline-indicator">&#x26A0;&#xFE0F; עובד במצב לא מקוון</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">&#x1F3B3;</div>
+      <h2>ליגת באולינג</h2>
+      <p style="font-size:10px;color:#FBBF24;font-weight:800;letter-spacing:1px;">DEMO</p>
+      <p>ניהול</p>
+    </div>
+    <div class="nav">
+      <a onclick="showPage('dashboard')" id="nav-dashboard"><span class="icon">&#x1F3E0;</span><span>לוח בקרה</span></a>
+      <a onclick="showPage('teams')" id="nav-teams"><span class="icon">&#x1F465;</span><span>קבוצות</span></a>
+      <a onclick="showPage('players')" id="nav-players"><span class="icon">&#x1F3CB;&#xFE0F;</span><span>שחקנים</span></a>
+      <a onclick="showPage('schedule')" id="nav-schedule"><span class="icon">&#x1F4C5;</span><span>לוח משחקים</span></a>
+      <a onclick="showPage('results')" id="nav-results"><span class="icon">&#x1F3AF;</span><span>תוצאות</span></a>
+      <a onclick="showPage('standings')" id="nav-standings"><span class="icon">&#x1F3C6;</span><span>דירוג וסטטיסטיקות</span></a>
+      <a onclick="showPage('settings')" id="nav-settings"><span class="icon">&#x2699;&#xFE0F;</span><span>הגדרות</span></a>
+    </div>
+    <div class="sidebar-footer">ליגת באולינג (DEMO) &copy; <span id="footer-year"></span></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div><h1>&#x1F3E0; לוח בקרה</h1><p>סקירה כללית של הליגה</p></div>
+      </div>
+      <div class="stats-grid" id="dash-stats"></div>
+      <div class="form-row" style="align-items:start;">
+        <div class="card">
+          <h2 style="margin-bottom:14px; font-size:16px;">&#x1F4C5; משחקים קרובים</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>תאריך</th><th>שעה</th><th>קבוצה א׳</th><th>קבוצה ב׳</th></tr></thead>
+            <tbody id="dash-upcoming-tbody"></tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3AF; תוצאות אחרונות</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>תאריך</th><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>נקודות</th></tr></thead>
+            <tbody id="dash-recent-tbody"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEAMS -->
+    <div id="page-teams" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F465; קבוצות</h1><p>ניהול הקבוצות בליגה</p></div>
+        <button class="btn btn-primary" onclick="openTeamModal()">+ קבוצה חדשה</button>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>קבוצה</th><th>מס׳ שחקנים</th><th></th></tr></thead>
+        <tbody id="teams-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- PLAYERS -->
+    <div id="page-players" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F3CB;&#xFE0F; שחקנים</h1><p>ניהול שחקני הליגה — הוספת שחקן חדש בשורה האחרונה בטבלה</p></div>
+      </div>
+      <div class="card">
+        <div class="form-group" style="max-width:260px;">
+          <label>סינון לפי קבוצה</label>
+          <select id="players-filter-team" onchange="renderPlayers()"><option value="">כל הקבוצות</option></select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>שם</th><th>קבוצה</th><th>ממוצע</th><th>הנדיקפ</th><th></th></tr></thead>
+          <tbody id="players-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SCHEDULE -->
+    <div id="page-schedule" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F4C5; לוח משחקים</h1><p>תזמון מפגשי הליגה</p></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="openPrintFormModal()">&#x1F5A8;&#xFE0F; טופס לערב משחקים</button>
+          <button class="btn btn-secondary" onclick="openAutoScheduleModal()">&#x1F3B2; צור תוכנית אוטומטית</button>
+          <button class="btn btn-primary" onclick="openScheduleModal()">+ משחק חדש</button>
+        </div>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>תאריך</th><th>שעה</th><th>מסלול</th><th>מחזור</th><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>סטטוס</th><th></th></tr></thead>
+        <tbody id="schedule-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- RESULTS LIST -->
+    <div id="page-results" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F3AF; תוצאות</h1><p>היסטוריית משחקים שהוזנו</p></div>
+        <button class="btn btn-primary" onclick="openResultEntry()">+ תוצאה חדשה</button>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>תאריך</th><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>פינים</th><th>נקודות</th><th></th></tr></thead>
+        <tbody id="results-tbody"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- RESULT ENTRY (hidden from nav) -->
+    <div id="page-result-entry" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F3B3; הזנת תוצאה</h1><p>בחר קבוצות והזן ציון סופי לכל שחקן בכל משחק</p></div>
+        <button class="btn btn-secondary" onclick="showPage('results')">&#x2190; חזרה לתוצאות</button>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>משחק מתוזמן (אופציונלי)</label>
+            <select id="re-schedule-select" onchange="onScheduleSelectChange()"><option value="">-- ללא --</option></select>
+          </div>
+          <div class="form-group">
+            <label>תאריך</label>
+            <input type="date" id="re-date">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>קבוצה א׳</label>
+            <select id="re-team-a" onchange="renderResultEntryRoster()"><option value="">בחר קבוצה</option></select>
+          </div>
+          <div class="form-group">
+            <label>קבוצה ב׳</label>
+            <select id="re-team-b" onchange="renderResultEntryRoster()"><option value="">בחר קבוצה</option></select>
+          </div>
+        </div>
+        <div class="form-group" style="max-width:220px;">
+          <label>מספר משחקים בסדרה</label>
+          <input type="number" id="re-games-count" min="1" max="10" value="3" onchange="renderResultEntryRoster()">
+        </div>
+      </div>
+      <div id="re-roster-wrap"></div>
+      <div id="re-points-preview" class="card" style="margin-top:18px; display:none;"></div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+        <button class="btn btn-secondary" onclick="showPage('results')">ביטול</button>
+        <button class="btn btn-primary" onclick="saveResultEntry()">&#x1F4BE; שמור תוצאה</button>
+      </div>
+    </div>
+
+    <!-- STANDINGS -->
+    <div id="page-standings" class="page">
+      <div class="page-header">
+        <div><h1>&#x1F3C6; דירוג וסטטיסטיקות</h1><p>טבלת דירוג קבוצתי ואישי לכל הליגה</p></div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <h2 style="margin-bottom:14px; font-size:16px;">דירוג קבוצתי</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>קבוצה</th><th>שיחקו</th><th>נק׳ ליגה</th><th>סה"כ פינים</th><th>ממוצע לסדרה</th></tr></thead>
+          <tbody id="standings-teams-tbody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:14px; font-size:16px;">דירוג אישי</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>משחקים</th><th>ממוצע</th><th>ציון גבוה</th></tr></thead>
+          <tbody id="standings-players-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <div><h1>&#x2699;&#xFE0F; הגדרות</h1><p>קונפיגורציית ענן, סיסמת ניהול, וכללי ניקוד</p></div>
+      </div>
+      <div class="form-row" style="margin-bottom:20px;">
+        <div class="card">
+          <h2 style="margin-bottom:14px; font-size:16px;">&#x2601;&#xFE0F; חיבור לענן</h2>
+          <p style="font-size:13px;color:#64748B;margin-bottom:14px;">פרויקט Firebase מחובר: <strong id="settings-project-id">—</strong></p>
+          <button class="btn btn-secondary" onclick="reopenSetupScreen()">עדכן Firebase Config</button>
+          <button class="btn btn-secondary" style="margin-top:8px;" onclick="forceSyncLocalToCloud()">&#x1F4E4; העלה נתונים מקומיים לענן</button>
+          <p style="font-size:12px;color:#94A3B8;margin-top:8px;">שימושי אם נכנסת פעם למכשיר הזה כשהחיבור לענן היה שבור — זה דוחף את כל הנתונים ששמורים כאן מקומית ל-Firestore.</p>
+        </div>
+        <div class="card">
+          <h2 style="margin-bottom:14px; font-size:16px;">&#x1F511; סיסמת ניהול</h2>
+          <p style="font-size:13px;color:#64748B;margin-bottom:14px;">הסיסמה נדרשת לכניסה למסך הניהול הזה בלבד. האתר הציבורי פתוח תמיד ללא סיסמה.</p>
+          <button class="btn btn-secondary" onclick="openChangePinModal()">שנה סיסמה</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3AF; כללי ניקוד</h2>
+        <div class="form-row">
+          <div class="form-group"><label>מספר משחקים בסדרה (ברירת מחדל)</label><input type="number" id="set-games-per-match" min="1" max="10"></div>
+          <div class="form-group"><label>נקודות על ניצחון במשחק בודד</label><input type="number" id="set-points-game-win" min="0" step="0.5"></div>
+        </div>
+        <div class="form-group" style="max-width:260px;"><label>נקודות בונוס על סה"כ פינים בסדרה</label><input type="number" id="set-points-series-win" min="0" step="0.5"></div>
+        <button class="btn btn-primary" onclick="saveScoringSettings()">שמור הגדרות ניקוד</button>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3B3; הנדיקפ</h2>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">הנדיקפ מחושב אוטומטית לפי הממוצע האישי של כל שחקן, ומשפיע רק על תוצאות וניקוד ברמת המשחק הקבוצתי — טבלת הדירוג האישי תמיד מציגה ממוצע וציונים טהורים (Scratch).</p>
+        <div class="form-group" style="max-width:220px;">
+          <label><input type="checkbox" id="set-handicap-enabled" style="width:auto; margin-left:6px;">הפעל הנדיקפ</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>ציון בסיס</label><input type="number" id="set-handicap-basis" min="0" max="300"></div>
+          <div class="form-group"><label>אחוז הנדיקפ (%)</label><input type="number" id="set-handicap-percent" min="0" max="100"></div>
+        </div>
+        <p style="font-size:12px;color:#94A3B8;margin-bottom:14px;">נוסחה: הנדיקפ = (ציון בסיס − ממוצע שחקן) &times; אחוז. שחקן חדש ללא היסטוריה מקבל הנדיקפ 0.</p>
+        <button class="btn btn-primary" onclick="saveScoringSettings()">שמור הגדרות ניקוד</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TEAM MODAL -->
+<div id="team-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2 id="team-modal-title">&#x1F465; קבוצה חדשה</h2>
+    <input type="hidden" id="team-id">
+    <div class="form-group">
+      <label>שם קבוצה *</label>
+      <input type="text" id="team-name" placeholder="לדוגמה: הפינים הזהובים">
+    </div>
+    <div class="form-group">
+      <label>צבע קבוצה</label>
+      <input type="color" id="team-color" value="#0EA5E9" style="height:44px; padding:4px;">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('team-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveTeam()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYER MODAL -->
+<div id="player-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2 id="player-modal-title">&#x1F3CB;&#xFE0F; שחקן חדש</h2>
+    <input type="hidden" id="player-id">
+    <div class="form-group">
+      <label>שם שחקן *</label>
+      <input type="text" id="player-name" placeholder="שם מלא">
+    </div>
+    <div class="form-group">
+      <label>קבוצה</label>
+      <select id="player-team"><option value="">ללא קבוצה</option></select>
+    </div>
+    <div class="form-group">
+      <label>הנדיקפ ידני</label>
+      <input type="number" id="player-manual-handicap" placeholder="אוטומטי לפי ממוצע" min="0">
+      <p style="font-size:12px; color:#94A3B8; margin-top:5px;">בשימוש רק כל עוד לשחקן אין היסטוריית משחקים במערכת — לאחר המשחק הראשון שלו ההנדיקפ עובר לחישוב אוטומטי לפי הממוצע.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('player-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="savePlayer()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCHEDULE MODAL -->
+<div id="schedule-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2 id="schedule-modal-title">&#x1F4C5; משחק חדש</h2>
+    <input type="hidden" id="sch-id">
+    <div class="form-row">
+      <div class="form-group"><label>תאריך *</label><input type="date" id="sch-date"></div>
+      <div class="form-group"><label>שעה</label><input type="time" id="sch-time"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>מסלול</label><input type="text" id="sch-lane" placeholder="לדוגמה: 3-4"></div>
+      <div class="form-group"><label>מחזור</label><input type="text" id="sch-round" placeholder="לדוגמה: מחזור 3"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>קבוצה א׳ *</label>
+        <select id="sch-team-a"><option value="">בחר קבוצה</option></select>
+      </div>
+      <div class="form-group">
+        <label>קבוצה ב׳ *</label>
+        <select id="sch-team-b"><option value="">בחר קבוצה</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('schedule-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTO SCHEDULE MODAL -->
+<div id="auto-schedule-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>&#x1F3B2; יצירת תוכנית משחקים אוטומטית</h2>
+    <p style="font-size:13px; color:#64748B; margin-bottom:16px;">כל קבוצה תשחק נגד כל קבוצה אחרת, על פי מספר הקבוצות הרשומות במערכת. אם מספר הקבוצות אי-זוגי, קבוצה אחת תנוח בכל מחזור.</p>
+    <p style="font-size:13px; margin-bottom:16px;">קבוצות רשומות: <strong id="auto-sch-team-count">0</strong></p>
+    <div class="form-row">
+      <div class="form-group"><label>תאריך התחלה *</label><input type="date" id="auto-sch-start-date" onchange="updateAutoSchedulePreview()"></div>
+      <div class="form-group"><label>ימים בין מחזורים</label><input type="number" id="auto-sch-interval" min="1" value="7" onchange="updateAutoSchedulePreview()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>שעה לכל המשחקים (אופציונלי)</label><input type="time" id="auto-sch-time"></div>
+      <div class="form-group"><label>כמה פעמים לחזור על התוכנית</label><input type="number" id="auto-sch-repeats" min="1" max="10" value="1" onchange="updateAutoSchedulePreview()"></div>
+    </div>
+    <div id="auto-sch-preview" class="card" style="background:#F0F9FF; font-size:13px; color:#0369A1; padding:14px;"></div>
+    <div id="auto-sch-warning" style="color:#EF4444; font-size:13px; display:none; margin-top:10px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('auto-schedule-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="generateAutoSchedule()">&#x1F3B2; צור תוכנית</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT RESULTS FORM MODAL -->
+<div id="print-form-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>&#x1F5A8;&#xFE0F; טופס רישום תוצאות לערב משחקים</h2>
+    <p style="font-size:13px; color:#64748B; margin-bottom:16px;">בוחרים תאריך, ומדפיסים טופס עם כל המשחקים המתוזמנים לאותו ערב — כולל שמות השחקנים ומקום ריק לכתוב ציונים בכתב יד.</p>
+    <div class="form-group">
+      <label>תאריך</label>
+      <select id="print-form-date" onchange="updatePrintFormPreview()"></select>
+    </div>
+    <div id="print-form-preview" style="font-size:13px; color:#0369A1; margin-bottom:14px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('print-form-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="printResultsForm()">&#x1F5A8;&#xFE0F; הדפס טופס</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT DETAIL MODAL -->
+<div id="result-detail-modal" class="modal-overlay hidden">
+  <div class="modal" style="width:640px;">
+    <div id="result-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('result-detail-modal')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal" style="width:350px; text-align:center;">
+    <div style="font-size:44px; margin-bottom:14px;">&#x26A0;&#xFE0F;</div>
+    <h2 id="confirm-title" style="font-size:18px; margin-bottom:8px;"></h2>
+    <p id="confirm-msg" style="color:#64748B; font-size:14px; margin-bottom:26px;"></p>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button class="btn btn-secondary" onclick="confirmNo()">ביטול</button>
+      <button class="btn btn-danger" id="confirm-yes-btn" onclick="confirmYes()">מחק</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" style="display:none; position:fixed; inset:0; background:#EFF9FF; z-index:999; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:22px; padding:36px; max-width:530px; width:95%; border:1px solid #BAE6FD; box-shadow:0 24px 64px rgba(8,61,92,0.18);">
+    <div style="text-align:center; font-size:52px; margin-bottom:14px;">&#x1F3B3;</div>
+    <h2 style="text-align:center; color:#0C4A6E; font-size:22px; font-weight:800; margin-bottom:8px;">ליגת באולינג DEMO — הגדרת ענן</h2>
+    <p style="text-align:center; color:#0369A1; font-size:14px; margin-bottom:24px;">הדבק את קוד ה-Firebase Config כדי לחבר את הנתונים לענן</p>
+    <div style="margin-bottom:18px;">
+      <label style="font-size:13px; font-weight:700; color:#0369A1; display:block; margin-bottom:7px;">Firebase Config</label>
+      <textarea id="fb-config-input" rows="7"
+        style="width:100%; padding:12px; border:1.5px solid #BAE6FD; border-radius:10px; font-size:12px; font-family:monospace; direction:ltr; background:#F0F9FF; color:#0C4A6E; resize:vertical;"
+        placeholder='{"apiKey":"AIza...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}'></textarea>
+    </div>
+    <button onclick="applyFirebaseConfig()"
+      style="width:100%; padding:14px; background:linear-gradient(135deg,#0EA5E9,#0284C7); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;">
+      &#x1F680; התחבר לענן
+    </button>
+    <div id="setup-error" style="display:none; margin-top:14px; padding:10px 14px; background:#FEE2E2; color:#B91C1C; border-radius:8px; font-size:13px;"></div>
+    <details style="margin-top:20px;">
+      <summary style="cursor:pointer; font-size:13px; color:#0369A1; font-weight:600;">&#x2753; איך מקבלים Firebase Config?</summary>
+      <ol style="margin-top:12px; padding-right:18px; font-size:13px; color:#0C4A6E; line-height:2;">
+        <li>כנס ל-<strong>firebase.google.com</strong> והתחבר עם חשבון Google</li>
+        <li>לחץ <strong>Add project</strong> ← תן שם ← המשך</li>
+        <li>בתפריט השמאלי ← &#x2699;&#xFE0F; <strong>Project settings</strong></li>
+        <li>תחת <strong>Your apps</strong> ← לחץ &lt;/&gt; (Web) ← Register app</li>
+        <li>העתק את אובייקט ה-<strong>firebaseConfig</strong> והדבק למעלה</li>
+        <li>חזור לפאנל ← <strong>Build → Firestore Database</strong> ← Create database ← בחר <strong>Start in test mode</strong></li>
+        <li>לאחר החיבור, השתמש באותו Config גם בעמוד הציבורי (index.html) — הוראות בהגדרות</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:none; position:fixed; inset:0; background:linear-gradient(160deg,#0C4A6E 0%,#0369A1 60%,#0EA5E9 100%); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:22px; padding:40px 36px; max-width:340px; width:92%; box-shadow:0 24px 64px rgba(8,61,92,0.35); text-align:center;">
+    <div style="font-size:52px; margin-bottom:8px;">&#x1F3B3;</div>
+    <h2 style="color:#0C4A6E; font-size:20px; font-weight:800; margin-bottom:4px;">ניהול ליגת באולינג — DEMO</h2>
+    <p style="color:#64748B; font-size:13px; margin-bottom:28px;">הזן סיסמה להמשך</p>
+    <input type="password" id="login-pin-input" placeholder="סיסמה"
+      style="width:100%; padding:14px; text-align:center; font-size:26px; letter-spacing:8px; border:1.5px solid #BAE6FD; border-radius:10px; background:#F0F9FF; color:#0C4A6E; font-family:inherit; box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter') submitLoginPin()">
+    <div id="login-error" style="color:#EF4444; font-size:13px; display:none; margin-top:10px;">&#x274C; סיסמה שגויה</div>
+    <button onclick="submitLoginPin()"
+      style="width:100%; margin-top:18px; padding:14px; background:linear-gradient(135deg,#0EA5E9,#0284C7); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;">
+      כניסה &#x1F513;
+    </button>
+    <p style="margin-top:16px; font-size:12px; color:#94A3B8;">סיסמת ברירת מחדל: 1234</p>
+  </div>
+</div>
+
+<!-- CHANGE PIN MODAL -->
+<div id="change-pin-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:320px; text-align:center;">
+    <h2>&#x1F511; שינוי סיסמה</h2>
+    <div class="form-group" style="margin-top:20px;">
+      <label>סיסמה נוכחית</label>
+      <input type="password" id="current-pin-input" placeholder="סיסמה נוכחית" style="text-align:center;">
+    </div>
+    <div class="form-group">
+      <label>סיסמה חדשה (לפחות 4 תווים)</label>
+      <input type="password" id="new-pin-input" placeholder="סיסמה חדשה" style="text-align:center;">
+    </div>
+    <div id="change-pin-error" style="color:#EF4444; font-size:13px; display:none; margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('change-pin-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveNewPin()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="print-area"></div>
+
+<script>
+// ─── FIREBASE LOADING ──────────────────────────────────────────
+function loadFirebaseSDK() {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 8000);
+    function load(src, next) {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onerror = () => { clearTimeout(timer); resolve(false); };
+      s.onload  = next;
+      document.head.appendChild(s);
+    }
+    load('https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js', () =>
+      load('https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js', () =>
+        load('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js', () => {
+          clearTimeout(timer); resolve(true);
+        })
+      )
+    );
+  });
+}
+
+// DEMO instance — no project baked in yet. Paste this instance's own
+// Firebase config in the setup screen on first run (keep it separate from
+// the production league's project).
+let FIREBASE_CONFIG = null;
+let fdb = null;
+
+function loadStoredFbConfig() {
+  try {
+    const raw = localStorage.getItem('bowling_fb_config');
+    if (raw) FIREBASE_CONFIG = JSON.parse(raw);
+  } catch(e) { FIREBASE_CONFIG = null; }
+}
+
+let lastFbError = '';
+async function fbInit() {
+  try {
+    if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
+    if (!FIREBASE_CONFIG) throw new Error('No config');
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    fdb = firebase.firestore();
+    try { await fdb.enablePersistence({ synchronizeTabs: true }); } catch(e) {}
+    await firebase.auth().signInAnonymously();
+    return true;
+  } catch(e) {
+    console.warn('Firebase:', e.code || '', e.message);
+    lastFbError = (e.code ? e.code + ' — ' : '') + e.message;
+    fdb = null;
+    return false;
+  }
+}
+
+function fbSet(col, id, data) {
+  if (!fdb) return Promise.resolve();
+  return fdb.collection(col).doc(String(id)).set(data);
+}
+function fbDel(col, id) {
+  if (!fdb) return Promise.resolve();
+  return fdb.collection(col).doc(String(id)).delete();
+}
+
+// ─── SETUP SCREEN ──────────────────────────────────────────────
+async function applyFirebaseConfig() {
+  const raw = document.getElementById('fb-config-input').value.trim();
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+  let cfg;
+  try {
+    const cleaned = raw.replace(/^[\s\S]*?(\{)/, '$1').replace(/;\s*$/, '');
+    cfg = JSON.parse(cleaned);
+  } catch(e) {
+    errEl.textContent = 'פורמט לא תקין — הדבק את ה-Config כפי שהוא מ-Firebase'; errEl.style.display = 'block'; return;
+  }
+  if (!cfg.apiKey || !cfg.projectId) {
+    errEl.textContent = 'Config חסר שדות (apiKey / projectId)'; errEl.style.display = 'block'; return;
+  }
+  if (typeof firebase !== 'undefined' && firebase.apps.length) {
+    // Firebase was already initialized with a previous config — a live app
+    // can't be re-initialized in place, so save and reload to apply cleanly.
+    localStorage.setItem('bowling_fb_config', JSON.stringify(cfg));
+    location.reload();
+    return;
+  }
+  FIREBASE_CONFIG = cfg;
+  const sdkLoaded = await loadFirebaseSDK();
+  if (!sdkLoaded) { errEl.textContent = 'לא ניתן לטעון את Firebase SDK — בדוק חיבור לאינטרנט'; errEl.style.display = 'block'; return; }
+  const ok = await fbInit();
+  if (!ok) {
+    errEl.textContent = 'שגיאה בחיבור ל-Firebase: ' + lastFbError; errEl.style.display = 'block'; return;
+  }
+  localStorage.setItem('bowling_fb_config', JSON.stringify(cfg));
+  document.getElementById('setup-screen').style.display = 'none';
+  showLoginScreen();
+  backgroundSync();
+}
+
+function reopenSetupScreen() {
+  if (FIREBASE_CONFIG) document.getElementById('fb-config-input').value = JSON.stringify(FIREBASE_CONFIG, null, 2);
+  document.getElementById('setup-error').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+}
+
+// ─── DATA ────────────────────────────────────────────────────
+const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 1, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80 };
+const DB = { teams: [], players: [], schedule: [], results: [], settings: { ...DEFAULT_SETTINGS } };
+
+function uid(prefix) {
+  const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().replace(/-/g, '')
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+  return prefix + '_' + rand.slice(0, 12);
+}
+
+function dbSave() { localStorage.setItem('bowling_db', JSON.stringify(DB)); }
+function dbLoadLocal() {
+  try { const s = localStorage.getItem('bowling_db'); if (s) Object.assign(DB, JSON.parse(s)); } catch(e) {}
+}
+
+function getPin() { return localStorage.getItem('bowling_pin') || DB.settings.pin || '1234'; }
+
+async function dbLoadRemote() {
+  if (!fdb) return;
+  const [t, p, s, r, cfg] = await Promise.all([
+    fdb.collection('teams').get(),
+    fdb.collection('players').get(),
+    fdb.collection('schedule').get(),
+    fdb.collection('results').get(),
+    fdb.collection('settings').doc('config').get()
+  ]);
+  // Never let a sync silently erase local data: if the cloud has fewer
+  // records than what's already cached on this device (e.g. writes were
+  // failing in the background, or this is a fresh/misconfigured project),
+  // keep the local copy for that collection instead of overwriting it, and
+  // flag it so the admin can push local data up via "העלה נתונים לענן".
+  let staleRemote = false;
+  function reconcile(key, remoteDocs) {
+    if (remoteDocs.length < DB[key].length) { staleRemote = true; return; }
+    DB[key] = remoteDocs;
+  }
+  reconcile('teams', t.docs.map(d => d.data()));
+  reconcile('players', p.docs.map(d => d.data()));
+  reconcile('schedule', s.docs.map(d => d.data()));
+  reconcile('results', r.docs.map(d => d.data()));
+  if (cfg.exists) DB.settings = { ...DEFAULT_SETTINGS, ...cfg.data() };
+  if (DB.settings.pin) localStorage.setItem('bowling_pin', DB.settings.pin);
+  dbSave();
+  if (staleRemote) toast('⚠️ יש נתונים מקומיים שלא נמצאו בענן — לחץ "העלה נתונים מקומיים לענן" בהגדרות');
+}
+
+async function backgroundSync() {
+  try {
+    if (!fdb) { document.getElementById('offline-indicator').style.display = 'flex'; return; }
+    await Promise.race([
+      dbLoadRemote(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Firestore timeout')), 15000))
+    ]);
+    document.getElementById('offline-indicator').style.display = 'none';
+    refreshActivePage();
+  } catch(e) {
+    console.warn('Sync:', e.message);
+    document.getElementById('offline-indicator').style.display = 'flex';
+  }
+}
+
+function refreshActivePage() {
+  const activeEl = document.querySelector('.page.active');
+  if (!activeEl) return;
+  showPage(activeEl.id.replace('page-', ''));
+}
+
+// ─── UI HELPERS ────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openModalEl(id) { document.getElementById(id).classList.remove('hidden'); }
+
+let _confirmCb = null;
+function confirmAction(title, msg, cb, okLabel) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-yes-btn').textContent = okLabel || 'מחק';
+  _confirmCb = cb;
+  openModalEl('confirm-modal');
+}
+function confirmYes() { closeModal('confirm-modal'); const cb = _confirmCb; _confirmCb = null; if (cb) cb(); }
+function confirmNo() { closeModal('confirm-modal'); _confirmCb = null; }
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString('he-IL');
+}
+
+function teamName(id) { const t = DB.teams.find(x => x.id === id); return t ? t.name : '—'; }
+function teamColor(id) { const t = DB.teams.find(x => x.id === id); return t ? (t.color || '#94A3B8') : '#94A3B8'; }
+function playerName(id) { const p = DB.players.find(x => x.id === id); return p ? p.name : '—'; }
+
+// ─── NAV / ROUTING ──────────────────────────────────────────────
+const RENDERERS = {
+  dashboard: renderDashboard,
+  teams: renderTeams,
+  players: renderPlayers,
+  schedule: renderSchedule,
+  results: renderResults,
+  standings: renderStandings,
+  settings: renderSettings,
+  'result-entry': null
+};
+
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  const navEl = document.getElementById('nav-' + p);
+  if (navEl) navEl.classList.add('active');
+  RENDERERS[p]?.();
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+function renderDashboard() {
+  const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const nextGame = upcoming[0];
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-icon">&#x1F465;</div><div class="stat-label">קבוצות</div><div class="stat-value">${DB.teams.length}</div></div>
+    <div class="stat-card"><div class="stat-icon">&#x1F3CB;&#xFE0F;</div><div class="stat-label">שחקנים</div><div class="stat-value">${DB.players.length}</div></div>
+    <div class="stat-card"><div class="stat-icon">&#x1F3AF;</div><div class="stat-label">משחקים שהוזנו</div><div class="stat-value">${DB.results.length}</div></div>
+    <div class="stat-card"><div class="stat-icon">&#x1F4C5;</div><div class="stat-label">המשחק הבא</div><div class="stat-value" style="font-size:18px;">${nextGame ? fmtDate(nextGame.date) : '—'}</div>${nextGame ? `<div class="stat-sub">${teamName(nextGame.teamAId)} נגד ${teamName(nextGame.teamBId)}</div>` : ''}</div>
+  `;
+  document.getElementById('dash-upcoming-tbody').innerHTML = upcoming.slice(0, 6).map(s => `
+    <tr><td>${fmtDate(s.date)}</td><td>${s.time || '—'}</td><td>${teamName(s.teamAId)}</td><td>${teamName(s.teamBId)}</td></tr>
+  `).join('') || '<tr><td colspan="4" style="text-align:center; color:#94A3B8;">אין משחקים מתוכננים</td></tr>';
+
+  const recent = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 6);
+  document.getElementById('dash-recent-tbody').innerHTML = recent.map(r => `
+    <tr><td>${fmtDate(r.date)}</td><td>${teamName(r.teamAId)}</td><td>${teamName(r.teamBId)}</td><td><span class="badge badge-blue">${r.teamAPoints} : ${r.teamBPoints}</span></td></tr>
+  `).join('') || '<tr><td colspan="4" style="text-align:center; color:#94A3B8;">אין תוצאות עדיין</td></tr>';
+}
+
+// ─── TEAMS ───────────────────────────────────────────────────
+function renderTeams() {
+  document.getElementById('teams-tbody').innerHTML = DB.teams.map(t => {
+    const count = DB.players.filter(p => p.teamId === t.id).length;
+    return `<tr>
+      <td><span class="color-dot" style="background:${t.color || '#94A3B8'}"></span>${t.name}</td>
+      <td>${count}/${MAX_PLAYERS_PER_TEAM}${count >= MAX_PLAYERS_PER_TEAM ? ' <span class="badge badge-gray">מלאה</span>' : ''}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-secondary btn-sm" onclick="openTeamModal('${t.id}')">ערוך</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTeam('${t.id}')">מחק</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" style="text-align:center; color:#94A3B8;">אין קבוצות עדיין</td></tr>';
+}
+
+function openTeamModal(id) {
+  document.getElementById('team-id').value = id || '';
+  document.getElementById('team-modal-title').textContent = id ? '✏️ עריכת קבוצה' : '👥 קבוצה חדשה';
+  if (id) {
+    const t = DB.teams.find(x => x.id === id);
+    document.getElementById('team-name').value = t.name;
+    document.getElementById('team-color').value = t.color || '#0EA5E9';
+  } else {
+    document.getElementById('team-name').value = '';
+    document.getElementById('team-color').value = '#0EA5E9';
+  }
+  openModalEl('team-modal');
+}
+
+function saveTeam() {
+  const id = document.getElementById('team-id').value || uid('team');
+  const name = document.getElementById('team-name').value.trim();
+  const color = document.getElementById('team-color').value;
+  if (!name) { toast('נא להזין שם קבוצה'); return; }
+  const existing = DB.teams.find(t => t.id === id);
+  const data = { id, name, color, createdAt: existing ? existing.createdAt : new Date().toISOString() };
+  if (existing) Object.assign(existing, data); else DB.teams.push(data);
+  dbSave();
+  fbSet('teams', id, data);
+  closeModal('team-modal');
+  renderTeams();
+  populateTeamSelects();
+  toast('✅ הקבוצה נשמרה');
+}
+
+function deleteTeam(id) {
+  confirmAction('מחיקת קבוצה', 'למחוק את הקבוצה? שחקנים משויכים יהפכו ל"ללא קבוצה".', () => {
+    DB.teams = DB.teams.filter(t => t.id !== id);
+    DB.players.forEach(p => { if (p.teamId === id) { p.teamId = ''; fbSet('players', p.id, p); } });
+    dbSave();
+    fbDel('teams', id);
+    renderTeams();
+    populateTeamSelects();
+    toast('🗑️ הקבוצה נמחקה');
+  });
+}
+
+// ─── PLAYERS ─────────────────────────────────────────────────
+const MAX_PLAYERS_PER_TEAM = 3;
+
+function teamPlayerCount(teamId, excludePlayerId) {
+  return DB.players.filter(p => p.teamId === teamId && p.id !== excludePlayerId).length;
+}
+
+function populateTeamSelects() {
+  const opts = DB.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  ['sch-team-a', 'sch-team-b', 're-team-a', 're-team-b'].forEach(elId => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const placeholder = el.querySelector('option[value=""]');
+    el.innerHTML = (placeholder ? placeholder.outerHTML : '') + opts;
+  });
+  const filterEl = document.getElementById('players-filter-team');
+  if (filterEl) filterEl.innerHTML = '<option value="">כל הקבוצות</option>' + opts;
+}
+
+// The player-team select is built separately so full teams (already at
+// MAX_PLAYERS_PER_TEAM) can be shown disabled — excludePlayerId lets an
+// existing player keep their own team selectable while editing.
+function populatePlayerTeamSelect(excludePlayerId) {
+  const el = document.getElementById('player-team');
+  const opts = DB.teams.map(t => {
+    const count = teamPlayerCount(t.id, excludePlayerId);
+    const full = count >= MAX_PLAYERS_PER_TEAM;
+    return `<option value="${t.id}" ${full ? 'disabled' : ''}>${t.name} (${count}/${MAX_PLAYERS_PER_TEAM}${full ? ' — מלאה' : ''})</option>`;
+  }).join('');
+  el.innerHTML = '<option value="">ללא קבוצה</option>' + opts;
+}
+
+function playerStatsFor(playerId) {
+  let games = 0, total = 0, high = 0;
+  DB.results.forEach(r => (r.games || []).forEach(g => {
+    const s = g.playerScores ? g.playerScores[playerId] : undefined;
+    if (s !== undefined && s !== null) { games++; total += s; if (s > high) high = s; }
+  }));
+  return { games, avg: games ? total / games : 0, high };
+}
+
+// Handicap is based on a player's scratch average entering the match — it
+// only affects team-match scoring/standings, never the personal scratch table.
+// Players with no game history yet use their manually-set handicap (if any)
+// instead of the auto formula; once they have history, auto always wins.
+function computeHandicap(playerId) {
+  if (!DB.settings.handicapEnabled) return 0;
+  const st = playerStatsFor(playerId);
+  if (!st.games) {
+    const p = DB.players.find(x => x.id === playerId);
+    if (p && p.manualHandicap != null) return p.manualHandicap;
+  }
+  const basis = DB.settings.handicapBasis ?? 200;
+  const pct = (DB.settings.handicapPercent ?? 80) / 100;
+  const avg = st.games ? st.avg : basis; // no history & no manual value → assume scratch, handicap 0
+  return Math.max(0, Math.round((basis - avg) * pct));
+}
+
+function renderPlayers() {
+  const filter = document.getElementById('players-filter-team').value;
+  const list = DB.players.filter(p => !filter || p.teamId === filter);
+  const rows = list.map(p => {
+    const st = playerStatsFor(p.id);
+    return `<tr>
+      <td>${p.name}</td>
+      <td>${p.teamId ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}` : '<span class="badge badge-gray">ללא קבוצה</span>'}</td>
+      <td>${st.games ? st.avg.toFixed(1) : '—'}</td>
+      <td>${DB.settings.handicapEnabled ? computeHandicap(p.id) + (!st.games && p.manualHandicap != null ? ' <span style="color:#94A3B8; font-size:12px;">(ידני)</span>' : '') : '—'}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-secondary btn-sm" onclick="openPlayerModal('${p.id}')">ערוך</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePlayer('${p.id}')">מחק</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const teamOpts = DB.teams.map(t => {
+    const count = teamPlayerCount(t.id);
+    const full = count >= MAX_PLAYERS_PER_TEAM;
+    return `<option value="${t.id}" ${full ? 'disabled' : ''}>${t.name} (${count}/${MAX_PLAYERS_PER_TEAM}${full ? ' — מלאה' : ''})</option>`;
+  }).join('');
+  const newRow = `<tr style="background:#F8FCFF;">
+    <td><input type="text" id="new-player-name" placeholder="שם שחקן חדש" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
+    <td><select id="new-player-team"><option value="">ללא קבוצה</option>${teamOpts}</select></td>
+    <td style="color:#94A3B8;">—</td>
+    <td><input type="number" id="new-player-handicap" placeholder="אוטומטי" min="0" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
+    <td><button class="btn btn-primary btn-sm" onclick="saveInlinePlayer()">&#x1F4BE; שמירה</button></td>
+  </tr>`;
+
+  document.getElementById('players-tbody').innerHTML = rows + newRow;
+}
+
+function saveInlinePlayer() {
+  const nameEl = document.getElementById('new-player-name');
+  const name = nameEl.value.trim();
+  const teamId = document.getElementById('new-player-team').value;
+  const manualHandicapRaw = document.getElementById('new-player-handicap').value.trim();
+  const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
+  if (!name) { toast('נא להזין שם שחקן'); nameEl.focus(); return; }
+  if (teamId && teamPlayerCount(teamId) >= MAX_PLAYERS_PER_TEAM) {
+    toast(`⚠️ ${teamName(teamId)} כבר מלאה (${MAX_PLAYERS_PER_TEAM} שחקנים)`);
+    return;
+  }
+  const id = uid('plyr');
+  const data = { id, name, teamId, manualHandicap, createdAt: new Date().toISOString() };
+  DB.players.push(data);
+  dbSave();
+  fbSet('players', id, data);
+  renderPlayers();
+  renderTeams();
+  toast('✅ השחקן נוסף');
+  setTimeout(() => { const el = document.getElementById('new-player-name'); if (el) el.focus(); }, 50);
+}
+
+function openPlayerModal(id) {
+  document.getElementById('player-id').value = id || '';
+  document.getElementById('player-modal-title').textContent = id ? '✏️ עריכת שחקן' : '🏋️‍♂️ שחקן חדש';
+  populatePlayerTeamSelect(id || undefined);
+  if (id) {
+    const p = DB.players.find(x => x.id === id);
+    document.getElementById('player-name').value = p.name;
+    document.getElementById('player-team').value = p.teamId || '';
+    document.getElementById('player-manual-handicap').value = p.manualHandicap ?? '';
+  } else {
+    document.getElementById('player-name').value = '';
+    document.getElementById('player-team').value = '';
+    document.getElementById('player-manual-handicap').value = '';
+  }
+  openModalEl('player-modal');
+}
+
+function savePlayer() {
+  const id = document.getElementById('player-id').value || uid('plyr');
+  const name = document.getElementById('player-name').value.trim();
+  const teamId = document.getElementById('player-team').value;
+  const manualHandicapRaw = document.getElementById('player-manual-handicap').value.trim();
+  const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
+  if (!name) { toast('נא להזין שם שחקן'); return; }
+  if (teamId && teamPlayerCount(teamId, id) >= MAX_PLAYERS_PER_TEAM) {
+    toast(`⚠️ ${teamName(teamId)} כבר מלאה (${MAX_PLAYERS_PER_TEAM} שחקנים)`);
+    return;
+  }
+  const existing = DB.players.find(p => p.id === id);
+  const data = { id, name, teamId, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
+  if (existing) Object.assign(existing, data); else DB.players.push(data);
+  dbSave();
+  fbSet('players', id, data);
+  closeModal('player-modal');
+  renderPlayers();
+  renderTeams();
+  toast('✅ השחקן נשמר');
+}
+
+function deletePlayer(id) {
+  confirmAction('מחיקת שחקן', 'למחוק את השחקן? היסטוריית התוצאות שלו תישאר בתוצאות קיימות.', () => {
+    DB.players = DB.players.filter(p => p.id !== id);
+    dbSave();
+    fbDel('players', id);
+    renderPlayers();
+    renderTeams();
+    toast('🗑️ השחקן נמחק');
+  });
+}
+
+// ─── SCHEDULE ────────────────────────────────────────────────
+function renderSchedule() {
+  const list = [...DB.schedule].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  document.getElementById('schedule-tbody').innerHTML = list.map(s => `
+    <tr>
+      <td>${fmtDate(s.date)}</td>
+      <td>${s.time || '—'}</td>
+      <td>${s.lane || '—'}</td>
+      <td>${s.round || '—'}</td>
+      <td>${teamName(s.teamAId)}</td>
+      <td>${teamName(s.teamBId)}</td>
+      <td>${s.status === 'completed' ? '<span class="badge badge-green">הושלם</span>' : '<span class="badge badge-yellow">מתוזמן</span>'}</td>
+      <td style="white-space:nowrap;">
+        ${s.status !== 'completed' ? `<button class="btn btn-success btn-sm" onclick="openResultEntry('${s.id}')">הזן תוצאה</button>` : ''}
+        <button class="btn btn-secondary btn-sm" onclick="openScheduleModal('${s.id}')">ערוך</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}')">מחק</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" style="text-align:center; color:#94A3B8;">אין משחקים בלוח</td></tr>';
+}
+
+function openScheduleModal(id) {
+  document.getElementById('sch-id').value = id || '';
+  document.getElementById('schedule-modal-title').textContent = id ? '✏️ עריכת משחק' : '📅 משחק חדש';
+  if (id) {
+    const s = DB.schedule.find(x => x.id === id);
+    document.getElementById('sch-date').value = s.date || '';
+    document.getElementById('sch-time').value = s.time || '';
+    document.getElementById('sch-lane').value = s.lane || '';
+    document.getElementById('sch-round').value = s.round || '';
+    document.getElementById('sch-team-a').value = s.teamAId || '';
+    document.getElementById('sch-team-b').value = s.teamBId || '';
+  } else {
+    document.getElementById('sch-date').value = '';
+    document.getElementById('sch-time').value = '';
+    document.getElementById('sch-lane').value = '';
+    document.getElementById('sch-round').value = '';
+    document.getElementById('sch-team-a').value = '';
+    document.getElementById('sch-team-b').value = '';
+  }
+  openModalEl('schedule-modal');
+}
+
+function saveSchedule() {
+  const id = document.getElementById('sch-id').value || uid('sched');
+  const date = document.getElementById('sch-date').value;
+  const teamAId = document.getElementById('sch-team-a').value;
+  const teamBId = document.getElementById('sch-team-b').value;
+  if (!date) { toast('נא לבחור תאריך'); return; }
+  if (!teamAId || !teamBId || teamAId === teamBId) { toast('נא לבחור שתי קבוצות שונות'); return; }
+  const existing = DB.schedule.find(s => s.id === id);
+  const data = {
+    id, date, teamAId, teamBId,
+    time: document.getElementById('sch-time').value,
+    lane: document.getElementById('sch-lane').value.trim(),
+    round: document.getElementById('sch-round').value.trim(),
+    status: existing ? existing.status : 'scheduled'
+  };
+  if (existing) Object.assign(existing, data); else DB.schedule.push(data);
+  dbSave();
+  fbSet('schedule', id, data);
+  closeModal('schedule-modal');
+  renderSchedule();
+  toast('✅ המשחק נשמר');
+}
+
+function deleteSchedule(id) {
+  confirmAction('מחיקת משחק', 'למחוק את המשחק מהלוח?', () => {
+    DB.schedule = DB.schedule.filter(s => s.id !== id);
+    dbSave();
+    fbDel('schedule', id);
+    renderSchedule();
+    toast('🗑️ המשחק נמחק');
+  });
+}
+
+// ─── AUTO SCHEDULE (round robin) ───────────────────────────────
+// Classic circle method: team[0] stays fixed, the rest rotate each round.
+// An odd team count gets a null "bye" slot so every team sits out once
+// per pass through the cycle.
+function roundRobinRounds(teamIds) {
+  const teams = [...teamIds];
+  if (teams.length % 2 === 1) teams.push(null);
+  const n = teams.length;
+  const rounds = [];
+  for (let round = 0; round < n - 1; round++) {
+    const pairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = teams[i], b = teams[n - 1 - i];
+      if (a !== null && b !== null) pairs.push([a, b]);
+    }
+    rounds.push(pairs);
+    teams.splice(1, 0, teams.pop());
+  }
+  return rounds;
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function openAutoScheduleModal() {
+  if (DB.teams.length < 2) { toast('צריך לפחות 2 קבוצות כדי ליצור תוכנית'); return; }
+  document.getElementById('auto-sch-team-count').textContent = DB.teams.length;
+  document.getElementById('auto-sch-start-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('auto-sch-interval').value = 7;
+  document.getElementById('auto-sch-time').value = '';
+  document.getElementById('auto-sch-repeats').value = 1;
+  document.getElementById('auto-sch-warning').style.display = 'none';
+  updateAutoSchedulePreview();
+  openModalEl('auto-schedule-modal');
+}
+
+function updateAutoSchedulePreview() {
+  const n = DB.teams.length;
+  const previewEl = document.getElementById('auto-sch-preview');
+  if (n < 2) { previewEl.innerHTML = 'צריך לפחות 2 קבוצות'; return; }
+  const start = document.getElementById('auto-sch-start-date').value;
+  const interval = Math.max(1, parseInt(document.getElementById('auto-sch-interval').value) || 7);
+  const repeats = Math.max(1, parseInt(document.getElementById('auto-sch-repeats').value) || 1);
+  const rounds = roundRobinRounds(DB.teams.map(t => t.id));
+  const roundsPerPass = rounds.length;
+  const gamesPerPass = rounds.reduce((s, r) => s + r.length, 0);
+  const totalRounds = roundsPerPass * repeats;
+  const totalGames = gamesPerPass * repeats;
+  const endDate = start ? addDays(start, (totalRounds - 1) * interval) : null;
+  previewEl.innerHTML = `${roundsPerPass} מחזורים בכל מעבר (${gamesPerPass} משחקים) &times; ${repeats} חזרות = <strong>${totalRounds} מחזורים, ${totalGames} משחקים</strong> בסה"כ.` +
+    (endDate ? `<br>מ-${fmtDate(start)} עד ${fmtDate(endDate)}.` : '') +
+    (n % 2 === 1 ? '<br>מספר קבוצות אי-זוגי — קבוצה אחת תנוח בכל מחזור.' : '');
+}
+
+function generateAutoSchedule() {
+  const n = DB.teams.length;
+  if (n < 2) { toast('צריך לפחות 2 קבוצות כדי ליצור תוכנית'); return; }
+  const start = document.getElementById('auto-sch-start-date').value;
+  const interval = Math.max(1, parseInt(document.getElementById('auto-sch-interval').value) || 7);
+  const repeats = Math.max(1, parseInt(document.getElementById('auto-sch-repeats').value) || 1);
+  const time = document.getElementById('auto-sch-time').value;
+  const warnEl = document.getElementById('auto-sch-warning');
+  if (!start) { warnEl.textContent = 'נא לבחור תאריך התחלה'; warnEl.style.display = 'block'; return; }
+  warnEl.style.display = 'none';
+
+  const existingUpcoming = DB.schedule.filter(s => s.status !== 'completed');
+  const msg = existingUpcoming.length
+    ? `הפעולה תמחק ${existingUpcoming.length} משחקים מתוזמנים קיימים (שלא הוזנה עבורם תוצאה) ותחליף אותם בתוכנית החדשה. משחקים שכבר הושלמו לא יימחקו. להמשיך?`
+    : 'ליצור תוכנית משחקים חדשה?';
+
+  confirmAction('יצירת תוכנית משחקים', msg, () => {
+    existingUpcoming.forEach(s => fbDel('schedule', s.id));
+    DB.schedule = DB.schedule.filter(s => s.status === 'completed');
+
+    const rounds = roundRobinRounds(DB.teams.map(t => t.id));
+    let globalRound = 0;
+    for (let pass = 0; pass < repeats; pass++) {
+      rounds.forEach(pairs => {
+        const date = addDays(start, globalRound * interval);
+        const roundLabel = `מחזור ${globalRound + 1}`;
+        pairs.forEach(([teamA, teamB]) => {
+          const swap = pass % 2 === 1; // alternate home/away order on repeat passes
+          const id = uid('sched');
+          const data = {
+            id, date, time, lane: '', round: roundLabel,
+            teamAId: swap ? teamB : teamA,
+            teamBId: swap ? teamA : teamB,
+            status: 'scheduled'
+          };
+          DB.schedule.push(data);
+          fbSet('schedule', id, data);
+        });
+        globalRound++;
+      });
+    }
+    dbSave();
+    renderSchedule();
+    closeModal('auto-schedule-modal');
+    toast(`✅ נוצרה תוכנית עם ${globalRound} מחזורים`);
+  }, 'צור תוכנית');
+}
+
+// ─── PRINTABLE RESULTS FORM ────────────────────────────────────
+function openPrintFormModal() {
+  const dates = [...new Set(DB.schedule.filter(s => s.status !== 'completed').map(s => s.date))].sort();
+  if (!dates.length) { toast('אין משחקים מתוזמנים להדפסה'); return; }
+  document.getElementById('print-form-date').innerHTML = dates.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
+  updatePrintFormPreview();
+  openModalEl('print-form-modal');
+}
+
+function updatePrintFormPreview() {
+  const date = document.getElementById('print-form-date').value;
+  const games = DB.schedule.filter(s => s.date === date && s.status !== 'completed');
+  document.getElementById('print-form-preview').innerHTML = games.length
+    ? `${games.length} משחקים בתאריך זה: ` + games.map(s => `${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}`).join(', ')
+    : 'אין משחקים בתאריך זה';
+}
+
+function printResultsForm() {
+  const date = document.getElementById('print-form-date').value;
+  const games = DB.schedule.filter(s => s.date === date && s.status !== 'completed');
+  if (!games.length) { toast('אין משחקים בתאריך זה'); return; }
+  const gamesCount = DB.settings.gamesPerMatch || 3;
+  const hcpOn = DB.settings.handicapEnabled;
+  const header = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+
+  function playerRows(teamId) {
+    const players = DB.players.filter(p => p.teamId === teamId);
+    const cells = Array.from({ length: gamesCount }, () => `<td class="score-cell"></td>`).join('');
+    return players.map(p =>
+      `<tr><td>${p.name}${hcpOn ? ` (הנד&rsquo; ${computeHandicap(p.id)})` : ''}</td>${cells}<td class="score-cell"></td></tr>`
+    ).join('') || `<tr><td colspan="${gamesCount + 2}">אין שחקנים בקבוצה זו</td></tr>`;
+  }
+
+  const formsHtml = games.map(s => `
+    <div class="print-form-game">
+      <h3>${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}</h3>
+      <div class="meta">${fmtDate(s.date)}${s.time ? ' · שעה ' + s.time : ''}${s.lane ? ' · מסלול ' + s.lane : ''}${s.round ? ' · ' + s.round : ''}</div>
+      <table>
+        <thead><tr><th>${teamName(s.teamAId)}</th>${header}<th>סה"כ</th></tr></thead>
+        <tbody>${playerRows(s.teamAId)}</tbody>
+      </table>
+      <table>
+        <thead><tr><th>${teamName(s.teamBId)}</th>${header}<th>סה"כ</th></tr></thead>
+        <tbody>${playerRows(s.teamBId)}</tbody>
+      </table>
+    </div>
+  `).join('');
+
+  document.getElementById('print-area').innerHTML = `
+    <div style="text-align:center; margin-bottom:20px;">
+      <h1 style="font-size:20px;">טופס רישום תוצאות — ${fmtDate(date)}</h1>
+      <p style="font-size:12px; color:#475569;">ליגת באולינג (DEMO)</p>
+    </div>
+    ${formsHtml}
+  `;
+  closeModal('print-form-modal');
+  setTimeout(() => window.print(), 100);
+}
+
+// ─── RESULTS ─────────────────────────────────────────────────
+// Operative per-game team total used for match outcomes & standings: the
+// handicap-inclusive total when handicap is on (equal to the raw total when
+// it's off). Falls back to the legacy `teamATotal`/`teamBTotal` field name
+// for results saved before the handicap feature existed.
+function gameTotal(g, side) {
+  return g[`team${side}HcpTotal`] ?? g[`team${side}Total`] ?? 0;
+}
+
+function renderResults() {
+  const list = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  document.getElementById('results-tbody').innerHTML = list.map(r => {
+    const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+    const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+    return `<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td>${teamName(r.teamAId)}</td>
+      <td>${teamName(r.teamBId)}</td>
+      <td>${aPins} : ${bPins}</td>
+      <td><span class="badge badge-blue">${r.teamAPoints} : ${r.teamBPoints}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-secondary btn-sm" onclick="openResultDetail('${r.id}')">פרטים</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteResult('${r.id}')">מחק</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center; color:#94A3B8;">אין תוצאות עדיין</td></tr>';
+}
+
+function openResultDetail(id) {
+  const r = DB.results.find(x => x.id === id);
+  if (!r) return;
+  const teamAPlayers = DB.players.filter(p => p.teamId === r.teamAId);
+  const teamBPlayers = DB.players.filter(p => p.teamId === r.teamBId);
+  const gamesCount = (r.games || []).length;
+  const hcp = r.playerHandicaps || {};
+  function rows(players) {
+    return players.map(p => {
+      const cells = (r.games || []).map(g => `<td style="text-align:center;">${g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '—'}</td>`).join('');
+      const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[p.id]) || 0), 0);
+      const hLabel = r.handicapEnabled ? ` <span style="color:#94A3B8; font-size:12px;">(הנד׳ ${hcp[p.id] ?? 0})</span>` : '';
+      return `<tr><td>${p.name}${hLabel}</td>${cells}<td style="font-weight:800;">${total}</td></tr>`;
+    }).join('');
+  }
+  function totalsFooter(side) {
+    if (!r.handicapEnabled) return '';
+    const rawCells = (r.games || []).map(g => `<td style="text-align:center;">${g[`team${side}RawTotal`] ?? '—'}</td>`).join('');
+    const hcpCells = (r.games || []).map(g => `<td style="text-align:center;">${g[`team${side}HcpTotal`] ?? '—'}</td>`).join('');
+    return `<tr class="roster-total-row"><td>סה"כ טהור</td>${rawCells}<td></td></tr>
+      <tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td>${hcpCells}<td></td></tr>`;
+  }
+  const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
+  document.getElementById('result-detail-body').innerHTML = `
+    <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
+    <p style="color:#0369A1; margin-bottom:14px;">נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong>${r.handicapEnabled ? ' (מבוסס הנדיקפ)' : ''}</p>
+    <h3 style="font-size:14px; margin-bottom:8px;">${teamName(r.teamAId)}</h3>
+    <div class="table-wrap"><table><thead><tr><th>שחקן</th>${header}<th>סה"כ</th></tr></thead><tbody>${rows(teamAPlayers) || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`}${totalsFooter('A')}</tbody></table></div>
+    <h3 style="font-size:14px; margin:16px 0 8px;">${teamName(r.teamBId)}</h3>
+    <div class="table-wrap"><table><thead><tr><th>שחקן</th>${header}<th>סה"כ</th></tr></thead><tbody>${rows(teamBPlayers) || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`}${totalsFooter('B')}</tbody></table></div>
+  `;
+  openModalEl('result-detail-modal');
+}
+
+function deleteResult(id) {
+  confirmAction('מחיקת תוצאה', 'למחוק את התוצאה? הפעולה תשפיע על הדירוג.', () => {
+    const r = DB.results.find(x => x.id === id);
+    DB.results = DB.results.filter(x => x.id !== id);
+    if (r && r.scheduleId) {
+      const s = DB.schedule.find(x => x.id === r.scheduleId);
+      if (s) { s.status = 'scheduled'; fbSet('schedule', s.id, s); }
+    }
+    dbSave();
+    fbDel('results', id);
+    renderResults();
+    renderSchedule();
+    toast('🗑️ התוצאה נמחקה');
+  });
+}
+
+// ─── RESULT ENTRY ────────────────────────────────────────────
+function openResultEntry(scheduleId) {
+  const selectEl = document.getElementById('re-schedule-select');
+  const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  selectEl.innerHTML = '<option value="">-- ללא --</option>' + upcoming.map(s =>
+    `<option value="${s.id}">${fmtDate(s.date)} — ${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}</option>`
+  ).join('');
+  document.getElementById('re-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('re-games-count').value = DB.settings.gamesPerMatch || 3;
+  document.getElementById('re-team-a').value = '';
+  document.getElementById('re-team-b').value = '';
+  document.getElementById('re-roster-wrap').innerHTML = '';
+  document.getElementById('re-points-preview').style.display = 'none';
+  if (scheduleId) {
+    selectEl.value = scheduleId;
+    onScheduleSelectChange();
+  }
+  showPage('result-entry');
+}
+
+function onScheduleSelectChange() {
+  const id = document.getElementById('re-schedule-select').value;
+  if (!id) return;
+  const s = DB.schedule.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('re-date').value = s.date || '';
+  document.getElementById('re-team-a').value = s.teamAId || '';
+  document.getElementById('re-team-b').value = s.teamBId || '';
+  renderResultEntryRoster();
+}
+
+function renderResultEntryRoster() {
+  const teamAId = document.getElementById('re-team-a').value;
+  const teamBId = document.getElementById('re-team-b').value;
+  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
+  const wrap = document.getElementById('re-roster-wrap');
+  document.getElementById('re-points-preview').style.display = 'none';
+  if (!teamAId || !teamBId) { wrap.innerHTML = ''; return; }
+  if (teamAId === teamBId) { wrap.innerHTML = '<p style="color:#EF4444;">נא לבחור שתי קבוצות שונות</p>'; return; }
+
+  function buildTeamCard(teamId, side) {
+    const players = DB.players.filter(p => p.teamId === teamId);
+    const hcpOn = DB.settings.handicapEnabled;
+    const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
+    const rows = players.map(p => {
+      const cells = Array.from({ length: gamesCount }, (_, i) =>
+        `<td><input type="number" class="score-input" min="0" max="300" id="sc_${side}_${p.id}_${i}" oninput="recalcResultTotals()"></td>`
+      ).join('');
+      const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${computeHandicap(p.id)}</td>` : '';
+      return `<tr><td>${p.name}</td>${hcpCell}${cells}</tr>`;
+    }).join('');
+    const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="team-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="team-hcp-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const colspan = gamesCount + (hcpOn ? 2 : 1);
+    return `<div class="card roster-card">
+      <h3><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
+        <tfoot>
+          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}</tr>
+          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}</tr>` : ''}
+        </tfoot>
+      </table></div>
+    </div>`;
+  }
+
+  wrap.innerHTML = buildTeamCard(teamAId, 'a') + buildTeamCard(teamBId, 'b');
+  recalcResultTotals();
+}
+
+function teamHandicapSum(teamId) {
+  return DB.players.filter(p => p.teamId === teamId).reduce((s, p) => s + computeHandicap(p.id), 0);
+}
+
+function recalcResultTotals() {
+  const teamAId = document.getElementById('re-team-a').value;
+  const teamBId = document.getElementById('re-team-b').value;
+  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
+  if (!teamAId || !teamBId) return;
+  const aPlayers = DB.players.filter(p => p.teamId === teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === teamBId);
+  const aHcpSum = teamHandicapSum(teamAId);
+  const bHcpSum = teamHandicapSum(teamBId);
+  const gamesData = [];
+  for (let i = 0; i < gamesCount; i++) {
+    let aRaw = 0, bRaw = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_a_${p.id}_${i}`); aRaw += el ? (parseInt(el.value) || 0) : 0; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_b_${p.id}_${i}`); bRaw += el ? (parseInt(el.value) || 0) : 0; });
+    const aHcp = aRaw + aHcpSum, bHcp = bRaw + bHcpSum;
+    const rawAEl = document.getElementById(`team-raw-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
+    const rawBEl = document.getElementById(`team-raw-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
+    const hcpAEl = document.getElementById(`team-hcp-a-${i}`); if (hcpAEl) hcpAEl.textContent = aHcp;
+    const hcpBEl = document.getElementById(`team-hcp-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
+    gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp });
+  }
+  const { aPoints, bPoints } = computeMatchPoints(gamesData);
+  const previewEl = document.getElementById('re-points-preview');
+  previewEl.style.display = 'block';
+  previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(teamAId)} ${aPoints} — ${bPoints} ${teamName(teamBId)}`;
+}
+
+// Compares the operative (handicap-inclusive when enabled) per-game totals —
+// equal to the raw totals whenever handicap is switched off.
+function computeMatchPoints(gamesData) {
+  const gw = DB.settings.pointsPerGameWin ?? 1;
+  const sw = DB.settings.pointsPerSeriesWin ?? 1;
+  let aPoints = 0, bPoints = 0, aPins = 0, bPins = 0;
+  gamesData.forEach(g => {
+    if (g.teamAHcpTotal > g.teamBHcpTotal) aPoints += gw;
+    else if (g.teamBHcpTotal > g.teamAHcpTotal) bPoints += gw;
+    else { aPoints += gw / 2; bPoints += gw / 2; }
+    aPins += g.teamAHcpTotal; bPins += g.teamBHcpTotal;
+  });
+  if (aPins > bPins) aPoints += sw;
+  else if (bPins > aPins) bPoints += sw;
+  else { aPoints += sw / 2; bPoints += sw / 2; }
+  return { aPoints, bPoints };
+}
+
+function saveResultEntry() {
+  const teamAId = document.getElementById('re-team-a').value;
+  const teamBId = document.getElementById('re-team-b').value;
+  const date = document.getElementById('re-date').value;
+  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
+  const scheduleId = document.getElementById('re-schedule-select').value;
+  if (!teamAId || !teamBId || teamAId === teamBId) { toast('נא לבחור שתי קבוצות שונות'); return; }
+  if (!date) { toast('נא לבחור תאריך'); return; }
+
+  const aPlayers = DB.players.filter(p => p.teamId === teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === teamBId);
+  const playerHandicaps = {};
+  [...aPlayers, ...bPlayers].forEach(p => { playerHandicaps[p.id] = computeHandicap(p.id); });
+  const aHcpSum = teamHandicapSum(teamAId);
+  const bHcpSum = teamHandicapSum(teamBId);
+
+  const games = [];
+  for (let i = 0; i < gamesCount; i++) {
+    const playerScores = {};
+    let aRaw = 0, bRaw = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_a_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; aRaw += v; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_b_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; bRaw += v; });
+    games.push({
+      gameNum: i + 1, playerScores,
+      teamARawTotal: aRaw, teamBRawTotal: bRaw,
+      teamAHcpTotal: aRaw + aHcpSum, teamBHcpTotal: bRaw + bHcpSum
+    });
+  }
+  const { aPoints, bPoints } = computeMatchPoints(games);
+  const id = uid('res');
+  const data = {
+    id, date, scheduleId: scheduleId || null, teamAId, teamBId, games,
+    teamAPoints: aPoints, teamBPoints: bPoints,
+    handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
+    createdAt: new Date().toISOString()
+  };
+  DB.results.push(data);
+  dbSave();
+  fbSet('results', id, data);
+
+  if (scheduleId) {
+    const s = DB.schedule.find(x => x.id === scheduleId);
+    if (s) { s.status = 'completed'; dbSave(); fbSet('schedule', s.id, s); }
+  }
+
+  toast('✅ התוצאה נשמרה');
+  showPage('results');
+}
+
+// ─── STANDINGS ───────────────────────────────────────────────
+function computeTeamStandings() {
+  const map = {};
+  DB.teams.forEach(t => { map[t.id] = { team: t, played: 0, points: 0, pins: 0 }; });
+  DB.results.forEach(r => {
+    const a = map[r.teamAId], b = map[r.teamBId];
+    const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+    const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+    if (a) { a.played++; a.points += r.teamAPoints || 0; a.pins += aPins; }
+    if (b) { b.played++; b.points += r.teamBPoints || 0; b.pins += bPins; }
+  });
+  return Object.values(map).sort((x, y) => y.points - x.points || y.pins - x.pins);
+}
+
+function computePlayerStandings() {
+  return DB.players.map(p => {
+    const st = playerStatsFor(p.id);
+    return { player: p, ...st };
+  }).sort((a, b) => b.avg - a.avg || b.games - a.games);
+}
+
+function renderStandings() {
+  const teams = computeTeamStandings();
+  document.getElementById('standings-teams-tbody').innerHTML = teams.map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><span class="color-dot" style="background:${s.team.color || '#94A3B8'}"></span>${s.team.name}</td>
+      <td>${s.played}</td>
+      <td><strong>${s.points}</strong></td>
+      <td>${s.pins}</td>
+      <td>${s.played ? (s.pins / s.played).toFixed(1) : '—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center; color:#94A3B8;">אין נתונים עדיין</td></tr>';
+
+  const players = computePlayerStandings().filter(p => p.games > 0);
+  document.getElementById('standings-players-tbody').innerHTML = players.map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${s.player.name}</td>
+      <td>${s.player.teamId ? teamName(s.player.teamId) : '—'}</td>
+      <td>${s.games}</td>
+      <td><strong>${s.avg.toFixed(1)}</strong></td>
+      <td>${s.high}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center; color:#94A3B8;">אין נתונים עדיין</td></tr>';
+}
+
+// Pushes everything currently held in the local cache up to Firestore,
+// overwriting whatever's there by id. Recovery tool for devices that added
+// data while the cloud connection/permissions were broken (writes fail
+// silently in the background, so local data can end up stuck offline).
+async function forceSyncLocalToCloud() {
+  if (!fdb) { toast('אין חיבור לענן כרגע'); return; }
+  const counts = { teams: DB.teams.length, players: DB.players.length, schedule: DB.schedule.length, results: DB.results.length };
+  confirmAction(
+    'העלאת נתונים מקומיים לענן',
+    `הפעולה תדחוף ${counts.teams} קבוצות, ${counts.players} שחקנים, ${counts.schedule} משחקים מתוזמנים ו-${counts.results} תוצאות מהמכשיר הזה לענן, ותחליף כל נתון קיים בענן באותו מזהה. להמשיך?`,
+    async () => {
+      try {
+        await Promise.all([
+          ...DB.teams.map(t => fbSet('teams', t.id, t)),
+          ...DB.players.map(p => fbSet('players', p.id, p)),
+          ...DB.schedule.map(s => fbSet('schedule', s.id, s)),
+          ...DB.results.map(r => fbSet('results', r.id, r)),
+          fbSet('settings', 'config', DB.settings)
+        ]);
+        toast(`✅ הועלו לענן: ${counts.teams} קבוצות, ${counts.players} שחקנים, ${counts.schedule} משחקים, ${counts.results} תוצאות`);
+      } catch(e) {
+        toast('❌ שגיאה בהעלאה: ' + e.message);
+      }
+    },
+    'העלה לענן'
+  );
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('settings-project-id').textContent = FIREBASE_CONFIG ? FIREBASE_CONFIG.projectId : 'לא מחובר';
+  document.getElementById('set-games-per-match').value = DB.settings.gamesPerMatch ?? 3;
+  document.getElementById('set-points-game-win').value = DB.settings.pointsPerGameWin ?? 1;
+  document.getElementById('set-points-series-win').value = DB.settings.pointsPerSeriesWin ?? 1;
+  document.getElementById('set-handicap-enabled').checked = !!DB.settings.handicapEnabled;
+  document.getElementById('set-handicap-basis').value = DB.settings.handicapBasis ?? 200;
+  document.getElementById('set-handicap-percent').value = DB.settings.handicapPercent ?? 80;
+}
+
+function saveScoringSettings() {
+  DB.settings.gamesPerMatch = parseInt(document.getElementById('set-games-per-match').value) || 3;
+  DB.settings.pointsPerGameWin = parseFloat(document.getElementById('set-points-game-win').value) || 0;
+  DB.settings.pointsPerSeriesWin = parseFloat(document.getElementById('set-points-series-win').value) || 0;
+  DB.settings.handicapEnabled = document.getElementById('set-handicap-enabled').checked;
+  DB.settings.handicapBasis = parseInt(document.getElementById('set-handicap-basis').value) || 0;
+  DB.settings.handicapPercent = parseFloat(document.getElementById('set-handicap-percent').value) || 0;
+  dbSave();
+  fbSet('settings', 'config', DB.settings);
+  toast('✅ הגדרות הניקוד נשמרו');
+}
+
+function openChangePinModal() {
+  document.getElementById('current-pin-input').value = '';
+  document.getElementById('new-pin-input').value = '';
+  document.getElementById('change-pin-error').style.display = 'none';
+  openModalEl('change-pin-modal');
+}
+
+function saveNewPin() {
+  const current = document.getElementById('current-pin-input').value;
+  const next = document.getElementById('new-pin-input').value.trim();
+  const errEl = document.getElementById('change-pin-error');
+  if (current !== getPin()) { errEl.textContent = '❌ הסיסמה הנוכחית שגויה'; errEl.style.display = 'block'; return; }
+  if (next.length < 4) { errEl.textContent = '❌ הסיסמה חייבת להכיל לפחות 4 תווים'; errEl.style.display = 'block'; return; }
+  localStorage.setItem('bowling_pin', next);
+  DB.settings.pin = next;
+  dbSave();
+  fbSet('settings', 'config', DB.settings);
+  closeModal('change-pin-modal');
+  toast('✅ הסיסמה עודכנה');
+}
+
+// ─── LOGIN ───────────────────────────────────────────────────
+function showLoginScreen() {
+  document.getElementById('login-screen').style.display = 'flex';
+  setTimeout(() => document.getElementById('login-pin-input').focus(), 200);
+}
+
+function submitLoginPin() {
+  const entered = document.getElementById('login-pin-input').value;
+  const errEl = document.getElementById('login-error');
+  if (entered === getPin()) {
+    document.getElementById('login-screen').style.display = 'none';
+    showPage('dashboard');
+    populateTeamSelects();
+  } else {
+    errEl.style.display = 'block';
+    document.getElementById('login-pin-input').value = '';
+    document.getElementById('login-pin-input').focus();
+    setTimeout(() => errEl.style.display = 'none', 2000);
+  }
+}
+
+// ─── BOOT ────────────────────────────────────────────────────
+async function boot() {
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+  dbLoadLocal();
+  populateTeamSelects();
+  loadStoredFbConfig();
+  if (!FIREBASE_CONFIG) {
+    document.getElementById('setup-screen').style.display = 'flex';
+    return;
+  }
+  showLoginScreen();
+  try {
+    const sdkLoaded = await loadFirebaseSDK();
+    if (!sdkLoaded) { document.getElementById('offline-indicator').style.display = 'flex'; return; }
+    await fbInit();
+    if (!fdb) { document.getElementById('offline-indicator').style.display = 'flex'; return; }
+    await backgroundSync();
+    populateTeamSelects();
+  } catch(e) {
+    console.warn('Boot sync:', e.message);
+    document.getElementById('offline-indicator').style.display = 'flex';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
