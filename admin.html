@@ -772,7 +772,7 @@ function reopenSetupScreen() {
 }
 
 // ─── DATA ────────────────────────────────────────────────────
-const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 1, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null };
+const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 2, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null };
 const DB = { teams: [], players: [], schedule: [], results: [], settings: { ...DEFAULT_SETTINGS } };
 
 function uid(prefix) {
@@ -1707,7 +1707,7 @@ function recalcResultTotals() {
 // equal to the raw totals whenever handicap is switched off.
 function computeMatchPoints(gamesData) {
   const gw = DB.settings.pointsPerGameWin ?? 1;
-  const sw = DB.settings.pointsPerSeriesWin ?? 1;
+  const sw = DB.settings.pointsPerSeriesWin ?? 2;
   let aPoints = 0, bPoints = 0, aPins = 0, bPins = 0;
   gamesData.forEach(g => {
     if (g.teamAHcpTotal > g.teamBHcpTotal) aPoints += gw;
@@ -1863,7 +1863,7 @@ function renderSettings() {
   }
   document.getElementById('set-games-per-match').value = DB.settings.gamesPerMatch ?? 3;
   document.getElementById('set-points-game-win').value = DB.settings.pointsPerGameWin ?? 1;
-  document.getElementById('set-points-series-win').value = DB.settings.pointsPerSeriesWin ?? 1;
+  document.getElementById('set-points-series-win').value = DB.settings.pointsPerSeriesWin ?? 2;
   document.getElementById('set-handicap-enabled').checked = !!DB.settings.handicapEnabled;
   document.getElementById('set-handicap-basis').value = DB.settings.handicapBasis ?? 200;
   document.getElementById('set-handicap-percent').value = DB.settings.handicapPercent ?? 80;
