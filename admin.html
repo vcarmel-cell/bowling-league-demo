@@ -928,24 +928,32 @@ function updateSetupTeamsInfo() {
     : `כבר יש ${existing} קבוצות — לא יתווספו קבוצות נוספות.`;
 }
 
-function setupTeams() {
+async function setupTeams() {
   let n = parseInt(document.getElementById('setup-teams-count').value) || 0;
   n = Math.max(1, Math.min(MAX_TEAMS, n));
   const existing = DB.teams.length;
   if (n <= existing) { toast(`כבר יש ${existing} קבוצות במערכת`); return; }
   const toCreate = n - existing;
+  const newTeams = [];
   for (let i = 0; i < toCreate; i++) {
     const seq = existing + i + 1;
     const id = uid('team');
-    const data = { id, name: `קבוצה ${seq}`, color: teamColorForIndex(existing + i), createdAt: new Date().toISOString() };
-    DB.teams.push(data);
-    fbSet('teams', id, data);
+    newTeams.push({ id, name: `קבוצה ${seq}`, color: teamColorForIndex(existing + i), createdAt: new Date().toISOString() });
   }
+  newTeams.forEach(t => DB.teams.push(t));
   dbSave();
   closeModal('setup-teams-modal');
   renderTeams();
   populateTeamSelects();
-  toast(`✅ נוצרו ${toCreate} קבוצות חדשות`);
+  // Wait for the writes to actually confirm instead of firing-and-forgetting —
+  // a burst of near-simultaneous writes right after connecting is exactly the
+  // kind of thing that can silently drop the first item or two.
+  try {
+    await Promise.all(newTeams.map(t => fbSet('teams', t.id, t)));
+    toast(`✅ נוצרו ${toCreate} קבוצות חדשות`);
+  } catch(e) {
+    toast('⚠️ חלק מהקבוצות לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+  }
 }
 
 function openTeamModal(id) {
