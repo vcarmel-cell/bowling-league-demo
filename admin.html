@@ -243,7 +243,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div id="page-teams" class="page">
       <div class="page-header">
         <div><h1>&#x1F465; קבוצות</h1><p>ניהול הקבוצות בליגה</p></div>
-        <button class="btn btn-primary" onclick="openTeamModal()">+ קבוצה חדשה</button>
+        <button class="btn btn-primary" onclick="openSetupTeamsModal()">&#x1F3B3; הקמת קבוצות</button>
       </div>
       <div class="card"><div class="table-wrap"><table>
         <thead><tr><th>קבוצה</th><th>מס׳ שחקנים</th><th></th></tr></thead>
@@ -419,6 +419,23 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('team-modal')">ביטול</button>
       <button class="btn btn-primary" onclick="saveTeam()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP TEAMS MODAL -->
+<div id="setup-teams-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:380px; text-align:center;">
+    <h2>&#x1F3B3; הקמת קבוצות</h2>
+    <p style="font-size:13px; color:#64748B; margin-bottom:16px;">כל קבוצה תיווצר עם שם ברירת מחדל ("קבוצה 1", "קבוצה 2"...) וצבע ייחודי משלה. אפשר לשנות שם/צבע בהמשך דרך "ערוך".</p>
+    <div class="form-group">
+      <label>כמה קבוצות להקים? (1&ndash;20)</label>
+      <input type="number" id="setup-teams-count" min="1" max="20" style="text-align:center; font-size:22px;" oninput="updateSetupTeamsInfo()">
+    </div>
+    <div id="setup-teams-info" style="font-size:13px; color:#0369A1; margin-bottom:10px;"></div>
+    <div class="modal-footer" style="justify-content:center;">
+      <button class="btn btn-secondary" onclick="closeModal('setup-teams-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="setupTeams()">&#x1F3B3; צור קבוצות</button>
     </div>
   </div>
 </div>
@@ -878,6 +895,57 @@ function renderTeams() {
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="3" style="text-align:center; color:#94A3B8;">אין קבוצות עדיין</td></tr>';
+}
+
+// Generates well-separated hues via the golden angle, so sequential teams
+// stay visually distinct regardless of how many already exist.
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+function teamColorForIndex(index) {
+  return hslToHex(Math.round((index * 137.508) % 360), 65, 48);
+}
+
+const MAX_TEAMS = 20;
+
+function openSetupTeamsModal() {
+  document.getElementById('setup-teams-count').value = Math.min(MAX_TEAMS, DB.teams.length + 1 || 8);
+  updateSetupTeamsInfo();
+  openModalEl('setup-teams-modal');
+}
+
+function updateSetupTeamsInfo() {
+  const n = Math.max(1, Math.min(MAX_TEAMS, parseInt(document.getElementById('setup-teams-count').value) || 0));
+  const existing = DB.teams.length;
+  const toCreate = Math.max(0, n - existing);
+  document.getElementById('setup-teams-info').textContent = toCreate
+    ? `יש כבר ${existing} קבוצות — ייווספו ${toCreate} קבוצות חדשות (קבוצה ${existing + 1} עד קבוצה ${n}).`
+    : `כבר יש ${existing} קבוצות — לא יתווספו קבוצות נוספות.`;
+}
+
+function setupTeams() {
+  let n = parseInt(document.getElementById('setup-teams-count').value) || 0;
+  n = Math.max(1, Math.min(MAX_TEAMS, n));
+  const existing = DB.teams.length;
+  if (n <= existing) { toast(`כבר יש ${existing} קבוצות במערכת`); return; }
+  const toCreate = n - existing;
+  for (let i = 0; i < toCreate; i++) {
+    const seq = existing + i + 1;
+    const id = uid('team');
+    const data = { id, name: `קבוצה ${seq}`, color: teamColorForIndex(existing + i), createdAt: new Date().toISOString() };
+    DB.teams.push(data);
+    fbSet('teams', id, data);
+  }
+  dbSave();
+  closeModal('setup-teams-modal');
+  renderTeams();
+  populateTeamSelects();
+  toast(`✅ נוצרו ${toCreate} קבוצות חדשות`);
 }
 
 function openTeamModal(id) {
