@@ -1376,6 +1376,22 @@ function generateAutoSchedule() {
 }
 
 // ─── DEMO SEED DATA (this environment only) ────────────────────
+const DEMO_NAME_POOL = [
+  'עידן כהן', 'נועה לוי', 'דניאל מזרחי', 'שירה אברהם', 'יוסי פרץ', 'מאיה ביטון', 'רון גולן', 'טליה שרון',
+  'אורי דהן', 'נטע אזולאי', 'גיא בן דוד', 'הילה מלכה', 'איתי סבן', 'רותם חדד', 'עומר אשכנזי', 'ליאת רוזן',
+  'נדב שמעוני', 'קרן פינטו', 'אלון וקנין', 'שני אוחיון', 'תומר גבאי', 'מיכל אלבז', 'יובל נחום', 'דנה אסולין',
+  'ברק חן', 'אילת צור', 'עידו אליהו', 'נועם קורן', 'ורד שושן', 'אבישי בן חמו', 'שירן חורי', 'רועי אבוטבול',
+  'יעל שלום', 'יאיר טל', 'מור שמואלי', 'נעמה גל', 'אריאל בוזגלו', 'סתיו לוזון', 'עמית ששון', 'קרין אוזן'
+];
+function shuffled(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 async function seedDemoData() {
   confirmAction(
     'יצירת נתוני דמו',
@@ -1391,15 +1407,17 @@ async function seedDemoData() {
       newTeams.forEach(t => DB.teams.push(t));
       const seedTeams = DB.teams.slice(0, 10);
 
-      // 2. Players — 3 new players per team, random manual handicap 10-65
+      // 2. Players — 3 new players per team, realistic random names, random manual handicap 10-65
+      const names = shuffled(DEMO_NAME_POOL);
+      let nameIdx = 0;
       const newPlayers = [];
-      let seq = DB.players.length + 1;
       seedTeams.forEach(team => {
         for (let i = 0; i < 3; i++) {
           const id = uid('plyr');
           const manualHandicap = 10 + Math.floor(Math.random() * (65 - 10 + 1));
-          newPlayers.push({ id, name: `שחקן ${seq}`, teamId: team.id, manualHandicap, createdAt: new Date().toISOString() });
-          seq++;
+          const name = names[nameIdx % names.length];
+          nameIdx++;
+          newPlayers.push({ id, name, teamId: team.id, manualHandicap, createdAt: new Date().toISOString() });
         }
       });
       newPlayers.forEach(p => DB.players.push(p));
