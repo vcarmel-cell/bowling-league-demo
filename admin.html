@@ -982,7 +982,9 @@ function computeHandicap(playerId) {
 
 function renderPlayers() {
   const filter = document.getElementById('players-filter-team').value;
-  const list = DB.players.filter(p => !filter || p.teamId === filter);
+  const list = DB.players
+    .filter(p => !filter || p.teamId === filter)
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const rows = list.map(p => {
     const st = playerStatsFor(p.id);
     return `<tr>
