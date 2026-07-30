@@ -195,8 +195,8 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-brand">&#x1F3B3;</div>
-      <h2>ליגת באולינג</h2>
+      <div class="sidebar-brand league-logo-slot" id="sidebar-logo">&#x1F3B3;</div>
+      <h2 class="league-name-text" id="sidebar-league-name">ליגת באולינג</h2>
       <p style="font-size:10px;color:#FBBF24;font-weight:800;letter-spacing:1px;">DEMO</p>
       <p>ניהול</p>
     </div>
@@ -361,6 +361,31 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div id="page-settings" class="page">
       <div class="page-header">
         <div><h1>&#x2699;&#xFE0F; הגדרות</h1><p>קונפיגורציית ענן, סיסמת ניהול, וכללי ניקוד</p></div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3F7;&#xFE0F; מיתוג הליגה</h2>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">שם הליגה והלוגו מוצגים בכותרת האתר הציבורי (עמוד הדירוג) וכאן בממשק הניהול.</p>
+        <div class="form-group">
+          <label>שם הליגה</label>
+          <input type="text" id="set-league-name" placeholder="ליגת באולינג">
+        </div>
+        <div class="form-group">
+          <label>לוגו הליגה</label>
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div id="league-logo-preview" style="width:64px; height:64px; border-radius:10px; border:2px dashed #BAE6FD; display:flex; align-items:center; justify-content:center; background:#F0F9FF; overflow:hidden; flex-shrink:0;">
+              <span id="league-logo-placeholder" style="font-size:26px;">&#x1F3B3;</span>
+              <img id="league-logo-thumb" src="" alt="" style="display:none; width:100%; height:100%; object-fit:contain;">
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer; justify-content:center;">
+                &#x1F4C2; בחר תמונה
+                <input type="file" id="league-logo-input" accept="image/*" style="display:none;" onchange="previewLeagueLogo(this)">
+              </label>
+              <button id="league-logo-clear-btn" onclick="clearLeagueLogo()" style="display:none; background:#FEF2F2; color:#EF4444; border:1px solid #FECACA; border-radius:7px; padding:6px; font-size:13px; cursor:pointer;">&#x2715; הסר לוגו</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveBranding()">שמור מיתוג</button>
       </div>
       <div class="form-row" style="margin-bottom:20px;">
         <div class="card">
@@ -593,8 +618,8 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
 <!-- LOGIN SCREEN -->
 <div id="login-screen" style="display:none; position:fixed; inset:0; background:linear-gradient(160deg,#0C4A6E 0%,#0369A1 60%,#0EA5E9 100%); z-index:1000; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:22px; padding:40px 36px; max-width:340px; width:92%; box-shadow:0 24px 64px rgba(8,61,92,0.35); text-align:center;">
-    <div style="font-size:52px; margin-bottom:8px;">&#x1F3B3;</div>
-    <h2 style="color:#0C4A6E; font-size:20px; font-weight:800; margin-bottom:4px;">ניהול ליגת באולינג — DEMO</h2>
+    <div class="league-logo-slot" id="login-logo" style="font-size:52px; margin-bottom:8px;">&#x1F3B3;</div>
+    <h2 id="login-league-name" style="color:#0C4A6E; font-size:20px; font-weight:800; margin-bottom:4px;">ניהול ליגת באולינג — DEMO</h2>
     <p style="color:#64748B; font-size:13px; margin-bottom:28px;">הזן סיסמה להמשך</p>
     <input type="password" id="login-pin-input" placeholder="סיסמה"
       style="width:100%; padding:14px; text-align:center; font-size:26px; letter-spacing:8px; border:1.5px solid #BAE6FD; border-radius:10px; background:#F0F9FF; color:#0C4A6E; font-family:inherit; box-sizing:border-box;"
@@ -742,7 +767,7 @@ function reopenSetupScreen() {
 }
 
 // ─── DATA ────────────────────────────────────────────────────
-const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 1, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80 };
+const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 1, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null };
 const DB = { teams: [], players: [], schedule: [], results: [], settings: { ...DEFAULT_SETTINGS } };
 
 function uid(prefix) {
@@ -785,6 +810,7 @@ async function dbLoadRemote() {
   if (cfg.exists) DB.settings = { ...DEFAULT_SETTINGS, ...cfg.data() };
   if (DB.settings.pin) localStorage.setItem('bowling_pin', DB.settings.pin);
   dbSave();
+  applyBranding();
   if (staleRemote) toast('⚠️ יש נתונים מקומיים שלא נמצאו בענן — לחץ "העלה נתונים מקומיים לענן" בהגדרות');
 }
 
@@ -1728,12 +1754,84 @@ async function forceSyncLocalToCloud() {
 // ─── SETTINGS ────────────────────────────────────────────────
 function renderSettings() {
   document.getElementById('settings-project-id').textContent = FIREBASE_CONFIG ? FIREBASE_CONFIG.projectId : 'לא מחובר';
+  document.getElementById('set-league-name').value = DB.settings.leagueName || '';
+  _pendingLogoData = undefined;
+  document.getElementById('league-logo-input').value = '';
+  if (DB.settings.logoData) {
+    document.getElementById('league-logo-thumb').src = DB.settings.logoData;
+    document.getElementById('league-logo-thumb').style.display = 'block';
+    document.getElementById('league-logo-placeholder').style.display = 'none';
+    document.getElementById('league-logo-clear-btn').style.display = 'block';
+  } else {
+    document.getElementById('league-logo-thumb').style.display = 'none';
+    document.getElementById('league-logo-placeholder').style.display = 'block';
+    document.getElementById('league-logo-clear-btn').style.display = 'none';
+  }
   document.getElementById('set-games-per-match').value = DB.settings.gamesPerMatch ?? 3;
   document.getElementById('set-points-game-win').value = DB.settings.pointsPerGameWin ?? 1;
   document.getElementById('set-points-series-win').value = DB.settings.pointsPerSeriesWin ?? 1;
   document.getElementById('set-handicap-enabled').checked = !!DB.settings.handicapEnabled;
   document.getElementById('set-handicap-basis').value = DB.settings.handicapBasis ?? 200;
   document.getElementById('set-handicap-percent').value = DB.settings.handicapPercent ?? 80;
+}
+
+// ─── LEAGUE BRANDING ─────────────────────────────────────────
+let _pendingLogoData; // undefined = no change, null = cleared, string = new data URI
+
+function previewLeagueLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const maxSize = 300;
+      let w = img.width, h = img.height;
+      if (w > h && w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize; }
+      else if (h >= w && h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/png');
+      _pendingLogoData = dataUrl;
+      document.getElementById('league-logo-thumb').src = dataUrl;
+      document.getElementById('league-logo-thumb').style.display = 'block';
+      document.getElementById('league-logo-placeholder').style.display = 'none';
+      document.getElementById('league-logo-clear-btn').style.display = 'block';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearLeagueLogo() {
+  _pendingLogoData = null;
+  document.getElementById('league-logo-input').value = '';
+  document.getElementById('league-logo-thumb').src = '';
+  document.getElementById('league-logo-thumb').style.display = 'none';
+  document.getElementById('league-logo-placeholder').style.display = 'block';
+  document.getElementById('league-logo-clear-btn').style.display = 'none';
+}
+
+function saveBranding() {
+  DB.settings.leagueName = document.getElementById('set-league-name').value.trim() || 'ליגת באולינג';
+  if (_pendingLogoData !== undefined) DB.settings.logoData = _pendingLogoData;
+  _pendingLogoData = undefined;
+  dbSave();
+  fbSet('settings', 'config', DB.settings);
+  applyBranding();
+  toast('✅ המיתוג נשמר');
+}
+
+function applyBranding() {
+  const name = DB.settings.leagueName || 'ליגת באולינג';
+  document.querySelectorAll('.league-name-text').forEach(el => el.textContent = name);
+  document.getElementById('login-league-name').textContent = 'ניהול ' + name + ' — DEMO';
+  document.title = 'ניהול ' + name + ' — DEMO';
+  const logo = DB.settings.logoData;
+  document.querySelectorAll('.league-logo-slot').forEach(el => {
+    el.innerHTML = logo ? `<img src="${logo}" alt="" style="max-width:100%; max-height:100%; object-fit:contain;">` : '&#x1F3B3;';
+  });
 }
 
 function saveScoringSettings() {
@@ -1794,6 +1892,7 @@ function submitLoginPin() {
 async function boot() {
   document.getElementById('footer-year').textContent = new Date().getFullYear();
   dbLoadLocal();
+  applyBranding();
   populateTeamSelects();
   loadStoredFbConfig();
   showLoginScreen();

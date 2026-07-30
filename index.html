@@ -71,8 +71,8 @@ footer { text-align: center; padding: 20px; color: #7DD3FC; font-size: 12px; }
 <body>
 
 <header>
-  <div class="brand">&#x1F3B3;</div>
-  <h1>ליגת באולינג (DEMO)</h1>
+  <div class="brand" id="league-logo">&#x1F3B3;</div>
+  <h1 id="league-name">ליגת באולינג (DEMO)</h1>
   <p>טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת</p>
 </header>
 
@@ -283,12 +283,23 @@ async function boot() {
   try {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const fdb = firebase.firestore();
-    const [t, p, s, r] = await Promise.all([
+    const [t, p, s, r, cfg] = await Promise.all([
       fdb.collection('teams').get(),
       fdb.collection('players').get(),
       fdb.collection('schedule').get(),
-      fdb.collection('results').get()
+      fdb.collection('results').get(),
+      fdb.collection('settings').doc('config').get()
     ]);
+    if (cfg.exists) {
+      const settings = cfg.data();
+      if (settings.leagueName) {
+        document.getElementById('league-name').textContent = settings.leagueName + ' (DEMO)';
+        document.title = settings.leagueName + ' — DEMO';
+      }
+      if (settings.logoData) {
+        document.getElementById('league-logo').innerHTML = `<img src="${settings.logoData}" alt="" style="max-width:64px; max-height:64px; object-fit:contain;">`;
+      }
+    }
     renderContent({
       teams: t.docs.map(d => d.data()),
       players: p.docs.map(d => d.data()),
