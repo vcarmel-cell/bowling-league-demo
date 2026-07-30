@@ -636,17 +636,24 @@ function loadFirebaseSDK() {
   });
 }
 
-// DEMO instance — no project baked in yet. Paste this instance's own
-// Firebase config in the setup screen on first run (keep it separate from
-// the production league's project).
-let FIREBASE_CONFIG = null;
+// Baked in for this DEMO instance's own Firebase project (bowling-league-demo)
+// — separate from the production league's project. A fresh browser/device
+// lands straight on the PIN screen instead of the Firebase setup screen.
+let FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBTZDp2AWS7k0Pg-jzTVHVdUi0RgWVquso",
+  authDomain: "bowling-league-demo.firebaseapp.com",
+  projectId: "bowling-league-demo",
+  storageBucket: "bowling-league-demo.firebasestorage.app",
+  messagingSenderId: "128811185669",
+  appId: "1:128811185669:web:a0c3c9c27d7905efc9ce6c"
+};
 let fdb = null;
 
 function loadStoredFbConfig() {
   try {
     const raw = localStorage.getItem('bowling_fb_config');
     if (raw) FIREBASE_CONFIG = JSON.parse(raw);
-  } catch(e) { FIREBASE_CONFIG = null; }
+  } catch(e) { /* keep the baked-in default */ }
 }
 
 let lastFbError = '';
@@ -1711,10 +1718,6 @@ async function boot() {
   dbLoadLocal();
   populateTeamSelects();
   loadStoredFbConfig();
-  if (!FIREBASE_CONFIG) {
-    document.getElementById('setup-screen').style.display = 'flex';
-    return;
-  }
   showLoginScreen();
   try {
     const sdkLoaded = await loadFirebaseSDK();
