@@ -215,6 +215,16 @@ function renderContent(DB) {
   });
   const topSeries = seriesEntries.sort((a, b) => b.total - a.total).slice(0, 3);
 
+  // All-time team series high (top 3) — same handicap-inclusive totals used in team standings
+  const teamSeriesEntries = [];
+  DB.results.forEach(r => {
+    const aTotal = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+    const bTotal = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+    teamSeriesEntries.push({ teamId: r.teamAId, total: aTotal, date: r.date });
+    teamSeriesEntries.push({ teamId: r.teamBId, total: bTotal, date: r.date });
+  });
+  const topTeamSeries = teamSeriesEntries.sort((a, b) => b.total - a.total).slice(0, 3);
+
   const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const recentResults = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
 
@@ -303,6 +313,21 @@ function renderContent(DB) {
                 <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">(${e.gamesCount} משחקים)</span></td>
                 <td>${fmtDate(e.date)}</td>
               </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x1F3C5; שיא קבוצתי לסדרה</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>קבוצה</th><th>סה"כ פינים</th><th>תאריך</th></tr></thead>
+          <tbody>
+            ${topTeamSeries.length ? topTeamSeries.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td><span class="color-dot" style="background:${teamColor(e.teamId)}"></span>${teamName(e.teamId)}</td>
+                <td><strong>${e.total}</strong></td>
+                <td>${fmtDate(e.date)}</td>
+              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
           </tbody>
         </table></div>
       </div>
