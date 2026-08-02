@@ -1804,6 +1804,8 @@ function openResultDetail(id) {
   document.getElementById('result-detail-body').innerHTML = `
     <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
     <p style="color:#0369A1; margin-bottom:14px;">נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong>${r.handicapEnabled ? ' (מבוסס הנדיקפ)' : ''}</p>
+    ${r.teamAForfeit ? `<p style="color:#EF4444; font-size:13px; margin-bottom:6px;">&#x26A0;&#xFE0F; ${teamName(r.teamAId)} לא הגיעה למשחק — 0 נקודות.</p>` : ''}
+    ${r.teamBForfeit ? `<p style="color:#EF4444; font-size:13px; margin-bottom:6px;">&#x26A0;&#xFE0F; ${teamName(r.teamBId)} לא הגיעה למשחק — 0 נקודות.</p>` : ''}
     <h3 style="font-size:14px; margin-bottom:8px;">${teamName(r.teamAId)}</h3>
     <div class="table-wrap"><table><thead><tr><th>שחקן</th>${header}<th>סה"כ</th></tr></thead><tbody>${rows(teamAPlayers) || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`}${totalsFooter('A')}</tbody></table></div>
     <h3 style="font-size:14px; margin:16px 0 8px;">${teamName(r.teamBId)}</h3>
@@ -1857,7 +1859,8 @@ function buildEditResultRoster(r) {
       }).join('');
       const hcpVal = (r.playerHandicaps && r.playerHandicaps[p.id]) || 0;
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${hcpVal}</td>` : '';
-      const absentCell = `<td style="text-align:center;"><input type="checkbox" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markEditPlayerAbsent('${side}','${p.id}', this.checked)"></td>`;
+      const wasForfeit = side === 'a' ? r.teamAForfeit : r.teamBForfeit;
+      const absentCell = `<td style="text-align:center;"><input type="checkbox" id="absedit_${side}_${p.id}" ${wasForfeit ? 'checked' : ''} title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markEditPlayerAbsent('${side}','${p.id}', this.checked)"></td>`;
       return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
@@ -1919,8 +1922,14 @@ function recalcEditResultTotals() {
     const hcpBEl = document.getElementById(`edit-hcp-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
     gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
   }
-  const { aPoints, bPoints } = computeMatchPoints(gamesData);
-  document.getElementById('edit-result-points').innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(r.teamAId)} ${aPoints} — ${bPoints} ${teamName(r.teamBId)}`;
+  let { aPoints, bPoints } = computeMatchPoints(gamesData);
+  const aAbsent = teamFullyAbsent(aPlayers, p => `absedit_a_${p.id}`);
+  const bAbsent = teamFullyAbsent(bPlayers, p => `absedit_b_${p.id}`);
+  if (aAbsent) aPoints = 0;
+  if (bAbsent) bPoints = 0;
+  const note = (aAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(r.teamAId)} נעדרים — 0 נקודות לקבוצה.</span>` : '') +
+    (bAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(r.teamBId)} נעדרים — 0 נקודות לקבוצה.</span>` : '');
+  document.getElementById('edit-result-points').innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(r.teamAId)} ${aPoints} — ${bPoints} ${teamName(r.teamBId)}${note}`;
 }
 
 async function saveEditResult() {
@@ -1945,10 +1954,16 @@ async function saveEditResult() {
       teamABonus: aBonus, teamBBonus: bBonus
     });
   }
-  const { aPoints, bPoints } = computeMatchPoints(games);
+  let { aPoints, bPoints } = computeMatchPoints(games);
+  const teamAForfeit = teamFullyAbsent(aPlayers, p => `absedit_a_${p.id}`);
+  const teamBForfeit = teamFullyAbsent(bPlayers, p => `absedit_b_${p.id}`);
+  if (teamAForfeit) aPoints = 0;
+  if (teamBForfeit) bPoints = 0;
   r.games = games;
   r.teamAPoints = aPoints;
   r.teamBPoints = bPoints;
+  r.teamAForfeit = teamAForfeit;
+  r.teamBForfeit = teamBForfeit;
   r.updatedAt = new Date().toISOString();
   dbSave();
   closeModal('edit-result-modal');
@@ -2008,7 +2023,7 @@ function buildMatchEntryCard(s) {
         `<td><input type="number" class="score-input" min="0" max="300" id="sc_${s.id}_${side}_${p.id}_${i}" oninput="recalcMatchEntryTotals('${s.id}')"></td>`
       ).join('');
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${computeHandicap(p.id)}</td>` : '';
-      const absentCell = `<td style="text-align:center;"><input type="checkbox" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markPlayerAbsent('${s.id}','${side}','${p.id}', this.checked)"></td>`;
+      const absentCell = `<td style="text-align:center;"><input type="checkbox" id="abs_${s.id}_${side}_${p.id}" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markPlayerAbsent('${s.id}','${side}','${p.id}', this.checked)"></td>`;
       return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-raw-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
@@ -2073,6 +2088,16 @@ function markPlayerAbsent(scheduleId, side, playerId, checked) {
   recalcMatchEntryTotals(scheduleId);
 }
 
+// A team that no-shows entirely gets 0 league points no matter what the
+// average-filled numbers happen to compare to — this only checks the box,
+// it doesn't change what the other (present) team earns.
+function teamFullyAbsent(players, checkboxIdFn) {
+  return players.length > 0 && players.every(p => {
+    const cb = document.getElementById(checkboxIdFn(p));
+    return cb && cb.checked;
+  });
+}
+
 function recalcMatchEntryTotals(scheduleId) {
   const s = DB.schedule.find(x => x.id === scheduleId);
   if (!s) return;
@@ -2093,9 +2118,17 @@ function recalcMatchEntryTotals(scheduleId) {
     const hcpBEl = document.getElementById(`mt-hcp-${s.id}-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
     gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
   }
-  const { aPoints, bPoints } = computeMatchPoints(gamesData);
+  let { aPoints, bPoints } = computeMatchPoints(gamesData);
+  const aAbsent = teamFullyAbsent(aPlayers, p => `abs_${s.id}_a_${p.id}`);
+  const bAbsent = teamFullyAbsent(bPlayers, p => `abs_${s.id}_b_${p.id}`);
+  if (aAbsent) aPoints = 0;
+  if (bAbsent) bPoints = 0;
   const previewEl = document.getElementById(`match-points-${s.id}`);
-  if (previewEl) previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(s.teamAId)} ${aPoints} — ${bPoints} ${teamName(s.teamBId)}`;
+  if (previewEl) {
+    const note = (aAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(s.teamAId)} נעדרים — 0 נקודות לקבוצה.</span>` : '') +
+      (bAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(s.teamBId)} נעדרים — 0 נקודות לקבוצה.</span>` : '');
+    previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(s.teamAId)} ${aPoints} — ${bPoints} ${teamName(s.teamBId)}${note}`;
+  }
 }
 
 // Compares the operative (handicap-inclusive when enabled) per-game totals —
@@ -2143,11 +2176,15 @@ async function saveMatchEntry(scheduleId) {
       teamABonus: aBonus, teamBBonus: bBonus
     });
   }
-  const { aPoints, bPoints } = computeMatchPoints(games);
+  let { aPoints, bPoints } = computeMatchPoints(games);
+  const teamAForfeit = teamFullyAbsent(aPlayers, p => `abs_${s.id}_a_${p.id}`);
+  const teamBForfeit = teamFullyAbsent(bPlayers, p => `abs_${s.id}_b_${p.id}`);
+  if (teamAForfeit) aPoints = 0;
+  if (teamBForfeit) bPoints = 0;
   const id = uid('res');
   const data = {
     id, date: s.date, scheduleId: s.id, teamAId: s.teamAId, teamBId: s.teamBId, games,
-    teamAPoints: aPoints, teamBPoints: bPoints,
+    teamAPoints: aPoints, teamBPoints: bPoints, teamAForfeit, teamBForfeit,
     handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
     createdAt: new Date().toISOString()
   };
