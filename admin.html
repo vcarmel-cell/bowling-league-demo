@@ -399,7 +399,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
           </label>
           <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400;">
             <input type="radio" name="scoring-method" id="set-scoring-roundrobin" value="roundRobin" style="width:auto; margin-top:3px;">
-            <span><strong>השוואה מול כל הקבוצות במחזור</strong> — בכל מחזור, כל קבוצה משווה את התוצאה שלה (לכל משחק ולסה"כ הסדרה) מול כל שאר הקבוצות ששיחקו באותו מחזור, לא רק מול היריבה שלה בלוח. נקודה אחת על כל קבוצה שהובסה בכל משחק בודד, ועוד נקודה על כל קבוצה שהובסה בסה"כ הסדרה. בונוס ציון גבוה נשאר כרגיל.</span>
+            <span><strong>השוואה מול כל הקבוצות במחזור</strong> — בכל מחזור, כל קבוצה משווה את התוצאה שלה (לכל משחק ולסה"כ הסדרה) מול כל שאר הקבוצות ששיחקו באותו מחזור, לא רק מול היריבה שלה בלוח. על כל קבוצה שהובסה בכל משחק בודד מקבלים "נקודות על ניצחון במשחק בודד" (מההגדרה למטה), ועל כל קבוצה שהובסה בסה"כ הסדרה מקבלים "נקודות בונוס על סה"כ פינים בסדרה". לדוגמה, בליגה של 10 קבוצות עם ההגדרות המוגדרות כברירת מחדל (1 נקודה למשחק, 2 לסדרה): קבוצה שניצחה את כל 9 היריבות במשחק מסוים מקבלת 9 נקודות על אותו משחק, וקבוצה שניצחה את כולן בסה"כ הסדרה מקבלת 18 נקודות על הסדרה. בונוס ציון גבוה נשאר כרגיל.</span>
           </label>
         </div>
         <p style="font-size:12px;color:#94A3B8;margin-bottom:14px;">משפיע רק על טבלת הדירוג הקבוצתי (בממשק הניהול ובאתר הציבורי). היסטוריית התוצאות והפרטים של כל משחק בודד ממשיכים להיות מוצגים לפי היריב המתוזמן, ללא שינוי.</p>
@@ -2274,6 +2274,13 @@ async function saveMatchEntry(scheduleId) {
 // but other teams still get full credit for beating its (average-filled)
 // totals — matching the forfeit rule used in the standard method.
 function computeRoundRobinTeamPoints() {
+  // Same per-win point values as the standard method (Settings → כללי
+  // ניקוד), just applied against every other team in the round instead of
+  // one scheduled opponent — so beating all N-1 other teams in a game earns
+  // (N-1) × pointsPerGameWin, and likewise for the series with its own
+  // (usually higher) weight.
+  const gw = DB.settings.pointsPerGameWin ?? 1;
+  const sw = DB.settings.pointsPerSeriesWin ?? 2;
   const byDate = {};
   DB.results.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
@@ -2302,10 +2309,10 @@ function computeRoundRobinTeamPoints() {
         const other = roundTeams[otherId];
         me.games.forEach((g, i) => {
           const og = other.games[i] ?? 0;
-          if (g > og) pts += 1; else if (g === og) pts += 0.5;
+          if (g > og) pts += gw; else if (g === og) pts += gw / 2;
         });
-        if (me.series > other.series) pts += 1;
-        else if (me.series === other.series) pts += 0.5;
+        if (me.series > other.series) pts += sw;
+        else if (me.series === other.series) pts += sw / 2;
       });
       teamPoints[teamId] = (teamPoints[teamId] || 0) + pts + me.bonus;
     });

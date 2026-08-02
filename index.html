@@ -147,6 +147,13 @@ function gameTotal(g, side) {
 // the higher series total, plus the same high-score bonus. Mirrors the
 // admin app's computeRoundRobinTeamPoints().
 function computeRoundRobinTeamPoints(DB) {
+  // Same per-win point values as the standard method (Settings → כללי
+  // ניקוד), just applied against every other team in the round instead of
+  // one scheduled opponent — so beating all N-1 other teams in a game earns
+  // (N-1) × pointsPerGameWin, and likewise for the series with its own
+  // (usually higher) weight.
+  const gw = DB.settings.pointsPerGameWin ?? 1;
+  const sw = DB.settings.pointsPerSeriesWin ?? 2;
   const byDate = {};
   DB.results.forEach(r => {
     if (!byDate[r.date]) byDate[r.date] = [];
@@ -174,10 +181,10 @@ function computeRoundRobinTeamPoints(DB) {
         const other = roundTeams[otherId];
         me.games.forEach((g, i) => {
           const og = other.games[i] ?? 0;
-          if (g > og) pts += 1; else if (g === og) pts += 0.5;
+          if (g > og) pts += gw; else if (g === og) pts += gw / 2;
         });
-        if (me.series > other.series) pts += 1;
-        else if (me.series === other.series) pts += 0.5;
+        if (me.series > other.series) pts += sw;
+        else if (me.series === other.series) pts += sw / 2;
       });
       teamPoints[teamId] = (teamPoints[teamId] || 0) + pts + me.bonus;
     });
