@@ -337,8 +337,8 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
       </div>
       <div class="card" style="margin-bottom:20px; border-color:#FBBF24;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F9EA; נתוני דמו</h2>
-        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">יוצר 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. זמין רק בסביבת ה-DEMO הזו.</p>
-        <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; צור נתוני דמו</button>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;"><strong>מוחק לגמרי</strong> את כל הקבוצות/שחקנים/לוח משחקים/תוצאות הקיימים, ויוצר מערך נקי במקומם: 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. אפשר להריץ שוב בכל עת לאיפוס מלא. זמין רק בסביבת ה-DEMO הזו.</p>
+        <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; אפס וצור נתוני דמו</button>
         <button class="btn btn-danger" style="margin-top:8px;" onclick="clearAllSchedule()">&#x1F5D1;&#xFE0F; מחק את כל לוח המשחקים</button>
       </div>
       <div class="card" style="margin-bottom:20px;">
@@ -1493,13 +1493,25 @@ function randomGameScore() {
 
 async function seedDemoData() {
   confirmAction(
-    'יצירת נתוני דמו',
-    'הפעולה תיצור 10 קבוצות ו-30 שחקנים לדוגמה (עם הנדיקפ ידני אקראי בין 10-65), תבנה תוכנית משחקים מלאה, ותמלא תוצאות אקראיות ל-4 המחזורים הראשונים. להמשיך?',
+    'איפוס ויצירת נתוני דמו',
+    'הפעולה תמחק לגמרי את כל הקבוצות, השחקנים, לוח המשחקים והתוצאות הקיימים בסביבת הדמו, ותיצור מערך נקי: 10 קבוצות, 30 שחקנים, תוכנית משחקים מלאה, ותוצאות אקראיות ל-4 המחזורים הראשונים. פעולה זו בלתי הפיכה. להמשיך?',
     async () => {
-      // 1. Teams — top up to 10, keep any existing teams as-is
-      const existingTeamCount = DB.teams.length;
+      // Wipe first so this is always a clean, repeatable reset — running it
+      // additively on top of existing data (the old behavior) let team
+      // rosters balloon past 3 players and let re-seeded rounds double up
+      // on the same players' game counts.
+      const oldTeams = [...DB.teams];
+      const oldPlayers = [...DB.players];
+      const oldSchedule = [...DB.schedule];
+      const oldResults = [...DB.results];
+      DB.teams = [];
+      DB.players = [];
+      DB.schedule = [];
+      DB.results = [];
+
+      // 1. Teams — fresh 10
       const newTeams = [];
-      for (let i = existingTeamCount; i < 10; i++) {
+      for (let i = 0; i < 10; i++) {
         const id = uid('team');
         newTeams.push({ id, name: `קבוצה ${i + 1}`, color: teamColorForIndex(i), createdAt: new Date().toISOString() });
       }
@@ -1524,15 +1536,21 @@ async function seedDemoData() {
       dbSave();
       renderTeams();
       renderPlayers();
+      renderSchedule();
+      renderResults();
       populateTeamSelects();
 
       try {
         await Promise.all([
+          ...oldResults.map(r => fbDel('results', r.id)),
+          ...oldSchedule.map(s => fbDel('schedule', s.id)),
+          ...oldPlayers.map(p => fbDel('players', p.id)),
+          ...oldTeams.map(t => fbDel('teams', t.id)),
           ...newTeams.map(t => fbSet('teams', t.id, t)),
           ...newPlayers.map(p => fbSet('players', p.id, p))
         ]);
       } catch(e) {
-        toast('⚠️ חלק מהקבוצות/שחקנים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+        toast('⚠️ חלק מהמחיקה/היצירה לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
         return;
       }
 
@@ -1612,7 +1630,7 @@ async function seedDemoData() {
         toast('⚠️ חלק מהנתונים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
       }
     },
-    'צור נתוני דמו'
+    'אפס וצור מחדש'
   );
 }
 
