@@ -1536,16 +1536,20 @@ async function seedDemoData() {
         return;
       }
 
-      // 3. Schedule — single round-robin pass across the 10 teams, weekly from today
+      // 3. Schedule — single round-robin pass across the 10 teams, weekly from
+      // today. Lane pairs (if configured in Settings) rotate by round, same
+      // as the standalone "צור תוכנית אוטומטית" tool.
       const rounds = roundRobinRounds(seedTeams.map(t => t.id));
       const startDate = todayStr();
+      const laneOptions = generateLanePairs(DB.settings.laneStart, DB.settings.laneEnd);
       const newSchedule = [];
       rounds.forEach((pairs, roundIdx) => {
         const date = addDays(startDate, roundIdx * 7);
         const roundLabel = `מחזור ${roundIdx + 1}`;
-        pairs.forEach(([teamA, teamB]) => {
+        pairs.forEach(([teamA, teamB], gameIdx) => {
+          const lane = laneOptions.length ? laneOptions[(gameIdx + roundIdx) % laneOptions.length] : '';
           const id = uid('sched');
-          newSchedule.push({ id, date, time: '', lane: '', round: roundLabel, teamAId: teamA, teamBId: teamB, status: 'scheduled' });
+          newSchedule.push({ id, date, time: '', lane, round: roundLabel, teamAId: teamA, teamBId: teamB, status: 'scheduled' });
         });
       });
       newSchedule.forEach(s => DB.schedule.push(s));
