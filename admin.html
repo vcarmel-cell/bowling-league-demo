@@ -339,6 +339,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F9EA; נתוני דמו</h2>
         <p style="font-size:13px;color:#64748B;margin-bottom:14px;">יוצר 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. זמין רק בסביבת ה-DEMO הזו.</p>
         <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; צור נתוני דמו</button>
+        <button class="btn btn-danger" style="margin-top:8px;" onclick="clearAllSchedule()">&#x1F5D1;&#xFE0F; מחק את כל לוח המשחקים</button>
       </div>
       <div class="card" style="margin-bottom:20px;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3F7;&#xFE0F; מיתוג הליגה</h2>
@@ -1608,6 +1609,28 @@ async function seedDemoData() {
       }
     },
     'צור נתוני דמו'
+  );
+}
+
+async function clearAllSchedule() {
+  if (!DB.schedule.length) { toast('אין משחקים בלוח'); return; }
+  const count = DB.schedule.length;
+  confirmAction(
+    'מחיקת לוח משחקים',
+    `הפעולה תמחק את כל ${count} המשחקים בלוח המשחקים (כולל כאלה שכבר הושלמו). תוצאות שכבר נשמרו לא יימחקו. להמשיך?`,
+    async () => {
+      const toDelete = [...DB.schedule];
+      DB.schedule = [];
+      dbSave();
+      renderSchedule();
+      try {
+        await Promise.all(toDelete.map(s => fbDel('schedule', s.id)));
+        toast(`✅ נמחקו ${toDelete.length} משחקים מהלוח`);
+      } catch(e) {
+        toast('⚠️ חלק מהמחיקות לא הושלמו בענן — נסה שוב או בדוק חיבור');
+      }
+    },
+    'מחק הכל'
   );
 }
 
