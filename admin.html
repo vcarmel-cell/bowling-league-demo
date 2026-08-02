@@ -1653,6 +1653,14 @@ function buildMatchEntryCard(s) {
   </div>`;
 }
 
+// A single bowling game is 0-300 (perfect game) — clamp so a stray keystroke
+// or paste can never push a bad number into totals or a saved result.
+function clampScore(raw) {
+  const v = parseInt(raw);
+  if (isNaN(v)) return 0;
+  return Math.max(0, Math.min(300, v));
+}
+
 function recalcMatchEntryTotals(scheduleId) {
   const s = DB.schedule.find(x => x.id === scheduleId);
   if (!s) return;
@@ -1664,8 +1672,8 @@ function recalcMatchEntryTotals(scheduleId) {
   const gamesData = [];
   for (let i = 0; i < gamesCount; i++) {
     let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); aRaw += el ? (parseInt(el.value) || 0) : 0; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); bRaw += el ? (parseInt(el.value) || 0) : 0; });
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); aRaw += el ? clampScore(el.value) : 0; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); bRaw += el ? clampScore(el.value) : 0; });
     const aHcp = aRaw + aHcpSum, bHcp = bRaw + bHcpSum;
     const rawAEl = document.getElementById(`mt-raw-${s.id}-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
     const rawBEl = document.getElementById(`mt-raw-${s.id}-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
@@ -1711,8 +1719,8 @@ async function saveMatchEntry(scheduleId) {
   for (let i = 0; i < gamesCount; i++) {
     const playerScores = {};
     let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; aRaw += v; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; bRaw += v; });
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; aRaw += v; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; bRaw += v; });
     games.push({
       gameNum: i + 1, playerScores,
       teamARawTotal: aRaw, teamBRawTotal: bRaw,
