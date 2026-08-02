@@ -390,6 +390,22 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
         <button class="btn btn-primary" onclick="saveScoringSettings()">שמור הגדרות ניקוד</button>
       </div>
       <div class="card" style="margin-top:20px;">
+        <h2 style="margin-bottom:14px; font-size:16px;">&#x1F4CA; שיטת ניקוד לדירוג הקבוצתי</h2>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">קובע איך מחושבות הנקודות שנצברות לטבלת הדירוג הקבוצתי. פרטי המשחק (ציונים, הנדיקפ, בונוס ציון גבוה) לא משתנים — רק אופן הפיכתם לנקודות דירוג.</p>
+        <div class="form-group">
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; margin-bottom:10px;">
+            <input type="radio" name="scoring-method" id="set-scoring-standard" value="standard" style="width:auto; margin-top:3px;">
+            <span><strong>רגיל</strong> — כל קבוצה מקבלת נקודות רק מול היריבה המתוזמנת שלה באותו מחזור (השיטה הנוכחית).</span>
+          </label>
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400;">
+            <input type="radio" name="scoring-method" id="set-scoring-roundrobin" value="roundRobin" style="width:auto; margin-top:3px;">
+            <span><strong>השוואה מול כל הקבוצות במחזור</strong> — בכל מחזור, כל קבוצה משווה את התוצאה שלה (לכל משחק ולסה"כ הסדרה) מול כל שאר הקבוצות ששיחקו באותו מחזור, לא רק מול היריבה שלה בלוח. נקודה אחת על כל קבוצה שהובסה בכל משחק בודד, ועוד נקודה על כל קבוצה שהובסה בסה"כ הסדרה. בונוס ציון גבוה נשאר כרגיל.</span>
+          </label>
+        </div>
+        <p style="font-size:12px;color:#94A3B8;margin-bottom:14px;">משפיע רק על טבלת הדירוג הקבוצתי (בממשק הניהול ובאתר הציבורי). היסטוריית התוצאות והפרטים של כל משחק בודד ממשיכים להיות מוצגים לפי היריב המתוזמן, ללא שינוי.</p>
+        <button class="btn btn-primary" onclick="saveScoringMethod()">שמור שיטת ניקוד</button>
+      </div>
+      <div class="card" style="margin-top:20px;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F3B3; הנדיקפ</h2>
         <p style="font-size:13px;color:#64748B;margin-bottom:14px;">הנדיקפ מחושב אוטומטית לפי הממוצע האישי של כל שחקן, ומשפיע רק על תוצאות וניקוד ברמת המשחק הקבוצתי — טבלת הדירוג האישי תמיד מציגה ממוצע וציונים טהורים (Scratch).</p>
         <div class="form-group" style="max-width:220px;">
@@ -801,7 +817,7 @@ function reopenSetupScreen() {
 }
 
 // ─── DATA ────────────────────────────────────────────────────
-const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 2, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null, laneStart: null, laneEnd: null };
+const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 2, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null, laneStart: null, laneEnd: null, scoringMethod: 'standard' };
 
 // Lanes are offered as adjacent pairs (e.g. "3-4"), matching how bowling
 // centers actually assign a match to a pair of lanes. A leftover single lane
@@ -2250,16 +2266,65 @@ async function saveMatchEntry(scheduleId) {
 }
 
 // ─── STANDINGS ───────────────────────────────────────────────
+// Alternative scoring: instead of points coming only from each team's own
+// scheduled pairing, every team in a round (same date) is compared against
+// every OTHER team that played that date — 1 point per game beaten (0.5 on
+// a tie), 1 more for the higher series total, plus the same high-score
+// bonus used everywhere else. A team fully absent (forfeit) still earns 0,
+// but other teams still get full credit for beating its (average-filled)
+// totals — matching the forfeit rule used in the standard method.
+function computeRoundRobinTeamPoints() {
+  const byDate = {};
+  DB.results.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = [];
+    byDate[r.date].push(r);
+  });
+  const teamPoints = {};
+  DB.teams.forEach(t => { teamPoints[t.id] = 0; });
+
+  Object.values(byDate).forEach(roundResults => {
+    const roundTeams = {};
+    roundResults.forEach(r => {
+      const aGames = (r.games || []).map(g => gameTotal(g, 'A'));
+      const bGames = (r.games || []).map(g => gameTotal(g, 'B'));
+      const aBonus = (r.games || []).reduce((s, g) => s + (g.teamABonus || 0), 0);
+      const bBonus = (r.games || []).reduce((s, g) => s + (g.teamBBonus || 0), 0);
+      roundTeams[r.teamAId] = { games: aGames, series: aGames.reduce((s, v) => s + v, 0), bonus: aBonus, forfeit: !!r.teamAForfeit };
+      roundTeams[r.teamBId] = { games: bGames, series: bGames.reduce((s, v) => s + v, 0), bonus: bBonus, forfeit: !!r.teamBForfeit };
+    });
+    const teamIds = Object.keys(roundTeams);
+    teamIds.forEach(teamId => {
+      const me = roundTeams[teamId];
+      if (me.forfeit) return; // stays 0 for this round
+      let pts = 0;
+      teamIds.forEach(otherId => {
+        if (otherId === teamId) return;
+        const other = roundTeams[otherId];
+        me.games.forEach((g, i) => {
+          const og = other.games[i] ?? 0;
+          if (g > og) pts += 1; else if (g === og) pts += 0.5;
+        });
+        if (me.series > other.series) pts += 1;
+        else if (me.series === other.series) pts += 0.5;
+      });
+      teamPoints[teamId] = (teamPoints[teamId] || 0) + pts + me.bonus;
+    });
+  });
+  return teamPoints;
+}
+
 function computeTeamStandings() {
+  const altPoints = DB.settings.scoringMethod === 'roundRobin' ? computeRoundRobinTeamPoints() : null;
   const map = {};
   DB.teams.forEach(t => { map[t.id] = { team: t, played: 0, points: 0, pins: 0 }; });
   DB.results.forEach(r => {
     const a = map[r.teamAId], b = map[r.teamBId];
     const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
     const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
-    if (a) { a.played++; a.points += r.teamAPoints || 0; a.pins += aPins; }
-    if (b) { b.played++; b.points += r.teamBPoints || 0; b.pins += bPins; }
+    if (a) { a.played++; a.pins += aPins; if (!altPoints) a.points += r.teamAPoints || 0; }
+    if (b) { b.played++; b.pins += bPins; if (!altPoints) b.points += r.teamBPoints || 0; }
   });
+  if (altPoints) { Object.keys(map).forEach(tid => { map[tid].points = altPoints[tid] || 0; }); }
   return Object.values(map).sort((x, y) => y.points - x.points || y.pins - x.pins);
 }
 
@@ -2349,6 +2414,16 @@ function renderSettings() {
   document.getElementById('set-lane-start').value = DB.settings.laneStart ?? '';
   document.getElementById('set-lane-end').value = DB.settings.laneEnd ?? '';
   updateLanePreview();
+  const method = DB.settings.scoringMethod === 'roundRobin' ? 'roundRobin' : 'standard';
+  document.getElementById('set-scoring-standard').checked = method === 'standard';
+  document.getElementById('set-scoring-roundrobin').checked = method === 'roundRobin';
+}
+
+function saveScoringMethod() {
+  DB.settings.scoringMethod = document.getElementById('set-scoring-roundrobin').checked ? 'roundRobin' : 'standard';
+  dbSave();
+  fbSet('settings', 'config', DB.settings);
+  toast('✅ שיטת הניקוד נשמרה');
 }
 
 function updateLanePreview() {
