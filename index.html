@@ -226,6 +226,13 @@ function renderContent(DB) {
   });
   const topTeamSeries = teamSeriesEntries.sort((a, b) => b.total - a.total).slice(0, 3);
 
+  // Women-only personal records — only shown once there are at least 2
+  // registered female players, so the tables aren't a near-empty ranking.
+  const playerGender = pid => (DB.players.find(p => p.id === pid) || {}).gender || '';
+  const womenCount = DB.players.filter(p => p.gender === 'אישה').length;
+  const topSingleGamesWomen = singleGameEntries.filter(e => playerGender(e.pid) === 'אישה').sort((a, b) => b.score - a.score).slice(0, 3);
+  const topSeriesWomen = seriesEntries.filter(e => playerGender(e.pid) === 'אישה').sort((a, b) => b.total - a.total).slice(0, 3);
+
   const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const recentResults = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
 
@@ -350,6 +357,39 @@ function renderContent(DB) {
           </tbody>
         </table></div>
       </div>
+      ${womenCount >= 2 ? `
+      <div class="card">
+        <h2>&#x1F3AF; שיא אישי למשחק בודד — נשים</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקנית</th><th>קבוצה</th><th>ציון</th><th>תאריך</th></tr></thead>
+          <tbody>
+            ${topSingleGamesWomen.length ? topSingleGamesWomen.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td>${playerName(e.pid)}</td>
+                <td>${teamCell(e.pid)}</td>
+                <td><strong>${e.score}</strong></td>
+                <td>${fmtDate(e.date)}</td>
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x1F3C6; שיא אישי לסדרה — נשים</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>שחקנית</th><th>קבוצה</th><th>ציון סדרה</th><th>תאריך</th></tr></thead>
+          <tbody>
+            ${topSeriesWomen.length ? topSeriesWomen.map((e, i) => `
+              <tr class="${rankClass(i)}">
+                <td>${i + 1}</td>
+                <td>${playerName(e.pid)}</td>
+                <td>${teamCell(e.pid)}</td>
+                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">(${e.gamesCount} משחקים)</span></td>
+                <td>${fmtDate(e.date)}</td>
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>` : ''}
     </div>
 
     <div class="section" id="section-schedule">
