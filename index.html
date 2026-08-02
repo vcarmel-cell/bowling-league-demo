@@ -192,6 +192,11 @@ function computeRoundRobinTeamPoints(DB) {
   return teamPoints;
 }
 
+// Set inside renderContent() each render — lets the round <select> in the
+// "תוצאות אחרונות" tab re-render just its cards on change, without a full
+// page re-render or a module-level copy of DB.
+let renderResultsForDate = null;
+
 function renderContent(DB) {
   const el = document.getElementById('content');
 
@@ -287,7 +292,45 @@ function renderContent(DB) {
   const topSeriesWomen = seriesEntries.filter(e => playerGender(e.pid) === 'אישה').sort((a, b) => b.total - a.total).slice(0, 3);
 
   const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const recentResults = [...DB.results].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
+
+  // Round selector for the "תוצאות אחרונות" tab — defaults to the latest
+  // played round, but any round with saved results can be picked.
+  const resultRoundDates = [...new Set(DB.results.map(r => r.date))].sort().reverse();
+
+  function buildResultCardsHtml(dateStr) {
+    const results = dateStr ? DB.results.filter(r => r.date === dateStr) : [];
+    return results.length ? results.map(r => {
+      const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+      const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+      const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
+      const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
+      const gamesCount = (r.games || []).length;
+      const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+      function playerRows(players) {
+        return players.map(p => {
+          const cells = (r.games || []).map(g => `<td style="text-align:center;">${g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '—'}</td>`).join('');
+          const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[p.id]) || 0), 0);
+          return `<tr><td>${p.name}</td>${cells}<td style="font-weight:800;">${total}</td></tr>`;
+        }).join('') || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`;
+      }
+      return `
+        <div class="card">
+          <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
+          <p style="font-size:13px; color:#0369A1; margin-bottom:14px;">פינים: <strong>${aPins} : ${bPins}</strong> &nbsp;·&nbsp; נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong></p>
+          <h3 style="font-size:14px; margin-bottom:8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamAId)}"></span>${teamName(r.teamAId)}</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+            <tbody>${playerRows(aPlayers)}</tbody>
+          </table></div>
+          <h3 style="font-size:14px; margin:16px 0 8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamBId)}"></span>${teamName(r.teamBId)}</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+            <tbody>${playerRows(bPlayers)}</tbody>
+          </table></div>
+        </div>`;
+    }).join('') : `<div class="card"><p style="text-align:center;color:#94A3B8;">אין תוצאות עדיין</p></div>`;
+  }
+  renderResultsForDate = buildResultCardsHtml;
 
   el.innerHTML = `
     <div class="tabs">
@@ -466,38 +509,21 @@ function renderContent(DB) {
     </div>
 
     <div class="section" id="section-results">
-      ${recentResults.length ? recentResults.map(r => {
-        const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
-        const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
-        const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
-        const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
-        const gamesCount = (r.games || []).length;
-        const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
-        function playerRows(players) {
-          return players.map(p => {
-            const cells = (r.games || []).map(g => `<td style="text-align:center;">${g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '—'}</td>`).join('');
-            const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[p.id]) || 0), 0);
-            return `<tr><td>${p.name}</td>${cells}<td style="font-weight:800;">${total}</td></tr>`;
-          }).join('') || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`;
-        }
-        return `
-          <div class="card">
-            <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
-            <p style="font-size:13px; color:#0369A1; margin-bottom:14px;">פינים: <strong>${aPins} : ${bPins}</strong> &nbsp;·&nbsp; נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong></p>
-            <h3 style="font-size:14px; margin-bottom:8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamAId)}"></span>${teamName(r.teamAId)}</h3>
-            <div class="table-wrap"><table>
-              <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
-              <tbody>${playerRows(aPlayers)}</tbody>
-            </table></div>
-            <h3 style="font-size:14px; margin:16px 0 8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamBId)}"></span>${teamName(r.teamBId)}</h3>
-            <div class="table-wrap"><table>
-              <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
-              <tbody>${playerRows(bPlayers)}</tbody>
-            </table></div>
-          </div>`;
-      }).join('') : `<div class="card"><p style="text-align:center;color:#94A3B8;">אין תוצאות עדיין</p></div>`}
+      ${resultRoundDates.length ? `
+      <div class="card" style="margin-bottom:20px;">
+        <label style="font-size:13px; font-weight:600; color:#0C4A6E;">בחר מחזור:</label>
+        <select id="results-round-select" onchange="switchResultsRound(this.value)" style="margin-right:8px; padding:6px 10px; border-radius:8px; border:1px solid #CBD5E1; font-family:inherit; font-size:14px;">
+          ${resultRoundDates.map(d => `<option value="${d}" ${d === resultRoundDates[0] ? 'selected' : ''}>${fmtDate(d)}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div id="results-cards">${buildResultCardsHtml(resultRoundDates[0] || null)}</div>
     </div>
   `;
+}
+
+function switchResultsRound(dateStr) {
+  const wrap = document.getElementById('results-cards');
+  if (wrap && renderResultsForDate) wrap.innerHTML = renderResultsForDate(dateStr);
 }
 
 function switchTab(name) {
