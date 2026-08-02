@@ -373,25 +373,36 @@ function renderContent(DB) {
     </div>
 
     <div class="section" id="section-results">
-      <div class="card">
-        <h2>תוצאות אחרונות</h2>
-        <div class="table-wrap"><table>
-          <thead><tr><th>תאריך</th><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>פינים</th><th>נקודות</th></tr></thead>
-          <tbody>
-            ${recentResults.length ? recentResults.map(r => {
-              const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
-              const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
-              return `<tr>
-                <td>${fmtDate(r.date)}</td>
-                <td>${teamName(r.teamAId)}</td>
-                <td>${teamName(r.teamBId)}</td>
-                <td>${aPins} : ${bPins}</td>
-                <td><span class="badge">${r.teamAPoints} : ${r.teamBPoints}</span></td>
-              </tr>`;
-            }).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין תוצאות עדיין</td></tr>`}
-          </tbody>
-        </table></div>
-      </div>
+      ${recentResults.length ? recentResults.map(r => {
+        const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+        const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+        const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
+        const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
+        const gamesCount = (r.games || []).length;
+        const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+        function playerRows(players) {
+          return players.map(p => {
+            const cells = (r.games || []).map(g => `<td style="text-align:center;">${g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '—'}</td>`).join('');
+            const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[p.id]) || 0), 0);
+            return `<tr><td>${p.name}</td>${cells}<td style="font-weight:800;">${total}</td></tr>`;
+          }).join('') || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`;
+        }
+        return `
+          <div class="card">
+            <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
+            <p style="font-size:13px; color:#0369A1; margin-bottom:14px;">פינים: <strong>${aPins} : ${bPins}</strong> &nbsp;·&nbsp; נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong></p>
+            <h3 style="font-size:14px; margin-bottom:8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamAId)}"></span>${teamName(r.teamAId)}</h3>
+            <div class="table-wrap"><table>
+              <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+              <tbody>${playerRows(aPlayers)}</tbody>
+            </table></div>
+            <h3 style="font-size:14px; margin:16px 0 8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamBId)}"></span>${teamName(r.teamBId)}</h3>
+            <div class="table-wrap"><table>
+              <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+              <tbody>${playerRows(bPlayers)}</tbody>
+            </table></div>
+          </div>`;
+      }).join('') : `<div class="card"><p style="text-align:center;color:#94A3B8;">אין תוצאות עדיין</p></div>`}
     </div>
   `;
 }
