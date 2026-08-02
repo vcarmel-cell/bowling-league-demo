@@ -401,7 +401,12 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
             <input type="radio" name="scoring-method" id="set-scoring-roundrobin" value="roundRobin" style="width:auto; margin-top:3px;">
             <span><strong>השוואה מול כל הקבוצות במחזור</strong> — בכל מחזור, כל קבוצה משווה את התוצאה שלה (לכל משחק ולסה"כ הסדרה) מול כל שאר הקבוצות ששיחקו באותו מחזור, לא רק מול היריבה שלה בלוח. על כל קבוצה שהובסה בכל משחק בודד מקבלים "נקודות על ניצחון במשחק בודד" (מההגדרה למטה), ועל כל קבוצה שהובסה בסה"כ הסדרה מקבלים "נקודות בונוס על סה"כ פינים בסדרה". לדוגמה, בליגה של 10 קבוצות עם ההגדרות המוגדרות כברירת מחדל (1 נקודה למשחק, 2 לסדרה): קבוצה שניצחה את כל 9 היריבות במשחק מסוים מקבלת 9 נקודות על אותו משחק, וקבוצה שניצחה את כולן בסה"כ הסדרה מקבלת 18 נקודות על הסדרה. בונוס ציון גבוה נשאר כרגיל.</span>
           </label>
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; margin-top:10px;">
+            <input type="radio" name="scoring-method" id="set-scoring-personal" value="personalImpact" style="width:auto; margin-top:3px;">
+            <span><strong>קבוצה נגד קבוצה עם השפעה אישית</strong> — נקודות על סה"כ פינים בדיוק כמו ב"קבוצה נגד קבוצה" (מול היריבה המתוזמנת בלבד), ובנוסף תחרות אישית: לפני הזנת התוצאות כל קבוצה קובעת סדר שחקנים (בעזרת החצים ליד שם השחקן במסך "הזנת תוצאות" או "עריכת תוצאה"), ושחקן ראשון משחק מול הראשון של הקבוצה היריבה במסלול המקביל, שני מול שני וכן הלאה. על כל משחק שבו שחקן ניצח את מקבילו, קבוצתו מקבלת "נקודות על ניצחון אישי" (מההגדרה למטה) — למשל עד 3 נקודות נוספות לשחקן בברירת המחדל של 3 משחקים. ההשוואה כוללת הנדיקפ אישי כשההנדיקפ מופעל.</span>
+          </label>
         </div>
+        <div class="form-group" style="max-width:280px;margin-bottom:14px;"><label>נקודות על ניצחון אישי במשחק בודד</label><input type="number" id="set-points-personal-game-win" min="0" step="0.5"></div>
         <p style="font-size:12px;color:#94A3B8;margin-bottom:14px;">משפיע רק על טבלת הדירוג הקבוצתי (בממשק הניהול ובאתר הציבורי). היסטוריית התוצאות והפרטים של כל משחק בודד ממשיכים להיות מוצגים לפי היריב המתוזמן, ללא שינוי.</p>
         <button class="btn btn-primary" onclick="saveScoringMethod()">שמור שיטת ניקוד</button>
       </div>
@@ -817,7 +822,7 @@ function reopenSetupScreen() {
 }
 
 // ─── DATA ────────────────────────────────────────────────────
-const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 2, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null, laneStart: null, laneEnd: null, scoringMethod: 'standard' };
+const DEFAULT_SETTINGS = { gamesPerMatch: 3, pointsPerGameWin: 1, pointsPerSeriesWin: 2, pointsPerPersonalGameWin: 1, pin: '1234', handicapEnabled: true, handicapBasis: 200, handicapPercent: 80, leagueName: 'ליגת באולינג', logoData: null, laneStart: null, laneEnd: null, scoringMethod: 'standard' };
 
 // Lanes are offered as adjacent pairs (e.g. "3-4"), matching how bowling
 // centers actually assign a match to a pair of lanes. A leftover single lane
@@ -1909,11 +1914,17 @@ function openEditResult(resultId) {
 function buildEditResultRoster(r) {
   const gamesCount = (r.games || []).length;
   const hcpOn = !!r.handicapEnabled;
+  const lineupOn = DB.settings.scoringMethod === 'personalImpact';
 
   function buildTeamBlock(teamId, side) {
     const players = DB.players.filter(p => p.teamId === teamId);
+    const savedOrder = side === 'a' ? r.teamAOrder : r.teamBOrder;
+    const ordered = (savedOrder && savedOrder.length)
+      ? savedOrder.map(id => players.find(p => p.id === id)).filter(Boolean).concat(players.filter(p => !savedOrder.includes(p.id)))
+      : players;
+    const tbodyId = `edit-roster-body-${side}`;
     const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
-    const rows = players.map(p => {
+    const rows = ordered.map((p, idx) => {
       const cells = Array.from({ length: gamesCount }, (_, i) => {
         const g = r.games[i];
         const existing = g && g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '';
@@ -1923,16 +1934,17 @@ function buildEditResultRoster(r) {
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${hcpVal}</td>` : '';
       const wasForfeit = side === 'a' ? r.teamAForfeit : r.teamBForfeit;
       const absentCell = `<td style="text-align:center;"><input type="checkbox" id="absedit_${side}_${p.id}" ${wasForfeit ? 'checked' : ''} title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markEditPlayerAbsent('${side}','${p.id}', this.checked)"></td>`;
-      return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
+      const nameCell = lineupOn ? `${lineupControlsHtml(tbodyId, p.id, idx)}${p.name}` : p.name;
+      return `<tr data-player-id="${p.id}"><td>${nameCell}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-hcp-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const colspan = gamesCount + (hcpOn ? 2 : 1) + 1;
     return `<div class="roster-card">
-      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}</h4>
+      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${lineupOn ? ` <span style="font-size:12px; color:#0369A1; font-weight:400;">(סדר עמדות אישי — ניתן לשנות בחצים)</span>` : ''}</h4>
       <div class="table-wrap"><table>
         <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}<th>נעדר</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
+        <tbody id="${tbodyId}">${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
         <tfoot>
           <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}<td></td></tr>
           ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}<td></td></tr>` : ''}
@@ -1985,13 +1997,25 @@ function recalcEditResultTotals() {
     gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
   }
   let { aPoints, bPoints } = computeMatchPoints(gamesData);
+  let personalNote = '';
+  if (DB.settings.scoringMethod === 'personalImpact') {
+    const aOrder = readLineupOrder('edit-roster-body-a', aPlayers);
+    const bOrder = readLineupOrder('edit-roster-body-b', bPlayers);
+    const getHcp = pid => (r.playerHandicaps && r.playerHandicaps[pid]) || 0;
+    const { aPts, bPts } = computePersonalImpactPoints(aOrder, bOrder, gamesCount, (side, pid, i) => {
+      const el = document.getElementById(`edit_${side}_${pid}_${i}`);
+      return el ? clampScore(el.value) : 0;
+    }, getHcp);
+    aPoints += aPts; bPoints += bPts;
+    personalNote = `<br><span style="color:#0369A1;">כולל נקודות אישיות: ${aPts} — ${bPts}</span>`;
+  }
   const aAbsent = teamFullyAbsent(aPlayers, p => `absedit_a_${p.id}`);
   const bAbsent = teamFullyAbsent(bPlayers, p => `absedit_b_${p.id}`);
   if (aAbsent) aPoints = 0;
   if (bAbsent) bPoints = 0;
   const note = (aAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(r.teamAId)} נעדרים — 0 נקודות לקבוצה.</span>` : '') +
     (bAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(r.teamBId)} נעדרים — 0 נקודות לקבוצה.</span>` : '');
-  document.getElementById('edit-result-points').innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(r.teamAId)} ${aPoints} — ${bPoints} ${teamName(r.teamBId)}${note}`;
+  document.getElementById('edit-result-points').innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(r.teamAId)} ${aPoints} — ${bPoints} ${teamName(r.teamBId)}${personalNote}${note}`;
 }
 
 async function saveEditResult() {
@@ -2017,6 +2041,18 @@ async function saveEditResult() {
     });
   }
   let { aPoints, bPoints } = computeMatchPoints(games);
+  if (DB.settings.scoringMethod === 'personalImpact') {
+    const aOrder = readLineupOrder('edit-roster-body-a', aPlayers);
+    const bOrder = readLineupOrder('edit-roster-body-b', bPlayers);
+    const getHcp = pid => (r.playerHandicaps && r.playerHandicaps[pid]) || 0;
+    const { aPts, bPts } = computePersonalImpactPoints(aOrder, bOrder, gamesCount, (side, pid, i) => {
+      const el = document.getElementById(`edit_${side}_${pid}_${i}`);
+      return el ? clampScore(el.value) : 0;
+    }, getHcp);
+    aPoints += aPts; bPoints += bPts;
+    r.teamAOrder = aOrder;
+    r.teamBOrder = bOrder;
+  }
   const teamAForfeit = teamFullyAbsent(aPlayers, p => `absedit_a_${p.id}`);
   const teamBForfeit = teamFullyAbsent(bPlayers, p => `absedit_b_${p.id}`);
   if (teamAForfeit) aPoints = 0;
@@ -2073,29 +2109,99 @@ function teamHandicapSum(teamId) {
   return DB.players.filter(p => p.teamId === teamId).reduce((s, p) => s + computeHandicap(p.id), 0);
 }
 
+// ─── PERSONAL-IMPACT LINEUP ORDER ──────────────────────────────
+// Used only by the "קבוצה נגד קבוצה עם השפעה אישית" scoring method. The
+// lineup order is whatever order the player rows are in inside their
+// <tbody> — moving a row with the arrows IS reordering the lineup, so
+// there's no separate state to keep in sync with the DOM.
+function moveLineupRow(tbodyId, playerId, dir) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const row = tbody.querySelector(`tr[data-player-id="${playerId}"]`);
+  if (!row) return;
+  if (dir < 0 && row.previousElementSibling) {
+    tbody.insertBefore(row, row.previousElementSibling);
+  } else if (dir > 0 && row.nextElementSibling) {
+    tbody.insertBefore(row.nextElementSibling, row);
+  }
+  renumberLineup(tbodyId);
+}
+
+function renumberLineup(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  Array.from(tbody.querySelectorAll('tr[data-player-id]')).forEach((tr, i) => {
+    const posEl = tr.querySelector('.lineup-pos');
+    if (posEl) posEl.textContent = (i + 1) + '.';
+  });
+}
+
+function readLineupOrder(tbodyId, fallbackPlayers) {
+  const tbody = document.getElementById(tbodyId);
+  if (tbody) {
+    const ids = Array.from(tbody.querySelectorAll('tr[data-player-id]')).map(tr => tr.dataset.playerId);
+    if (ids.length) return ids;
+  }
+  return fallbackPlayers.map(p => p.id);
+}
+
+// HTML for the position badge + reorder arrows shown in a player row when
+// the personal-impact method is active; empty string otherwise (plain name).
+function lineupControlsHtml(tbodyId, playerId, idx) {
+  return `<span class="lineup-pos" style="display:inline-block;min-width:16px;color:#94A3B8;font-size:12px;">${idx + 1}.</span> `
+    + `<button type="button" onclick="moveLineupRow('${tbodyId}','${playerId}',-1)" title="הזז למעלה" style="border:none;background:none;cursor:pointer;font-size:11px;padding:0 2px;">&#x25B2;</button>`
+    + `<button type="button" onclick="moveLineupRow('${tbodyId}','${playerId}',1)" title="הזז למטה" style="border:none;background:none;cursor:pointer;font-size:11px;padding:0 2px;">&#x25BC;</button> `;
+}
+
+// Position-vs-position points: lineup position 1 on each side plays position
+// 1 on the other side (parallel lane), 2 vs 2, etc. getHcp/getRawScore are
+// injected so match-entry (live computeHandicap) and result-editing (frozen
+// r.playerHandicaps snapshot) can share this logic.
+function computePersonalImpactPoints(aOrder, bOrder, gamesCount, getRawScore, getHcp) {
+  const pw = DB.settings.pointsPerPersonalGameWin ?? 1;
+  let aPts = 0, bPts = 0;
+  const n = Math.min(aOrder.length, bOrder.length);
+  for (let pos = 0; pos < n; pos++) {
+    const aId = aOrder[pos], bId = bOrder[pos];
+    const aHcp = getHcp(aId), bHcp = getHcp(bId);
+    for (let i = 0; i < gamesCount; i++) {
+      const av = getRawScore('a', aId, i) + aHcp;
+      const bv = getRawScore('b', bId, i) + bHcp;
+      if (av > bv) aPts += pw;
+      else if (bv > av) bPts += pw;
+      else { aPts += pw / 2; bPts += pw / 2; }
+    }
+  }
+  return { aPts, bPts };
+}
+
 function buildMatchEntryCard(s) {
   const gamesCount = DB.settings.gamesPerMatch || 3;
   const hcpOn = DB.settings.handicapEnabled;
 
+  const lineupOn = DB.settings.scoringMethod === 'personalImpact';
+
   function buildTeamBlock(teamId, side) {
     const players = DB.players.filter(p => p.teamId === teamId);
+    const tbodyId = `roster-body-${s.id}-${side}`;
     const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
-    const rows = players.map(p => {
+    const rows = players.map((p, idx) => {
       const cells = Array.from({ length: gamesCount }, (_, i) =>
         `<td><input type="number" class="score-input" min="0" max="300" id="sc_${s.id}_${side}_${p.id}_${i}" oninput="recalcMatchEntryTotals('${s.id}')"></td>`
       ).join('');
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${computeHandicap(p.id)}</td>` : '';
       const absentCell = `<td style="text-align:center;"><input type="checkbox" id="abs_${s.id}_${side}_${p.id}" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markPlayerAbsent('${s.id}','${side}','${p.id}', this.checked)"></td>`;
-      return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
+      const nameCell = lineupOn ? `${lineupControlsHtml(tbodyId, p.id, idx)}${p.name}` : p.name;
+      return `<tr data-player-id="${p.id}"><td>${nameCell}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-raw-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-hcp-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const colspan = gamesCount + (hcpOn ? 2 : 1) + 1;
     return `<div class="roster-card">
-      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}</h4>
+      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}${lineupOn ? ` <span style="font-size:12px; color:#0369A1; font-weight:400;">(סדר עמדות אישי — ניתן לשנות בחצים)</span>` : ''}</h4>
       <div class="table-wrap"><table>
         <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}<th>נעדר</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
+        <tbody id="${tbodyId}">${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
         <tfoot>
           <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}<td></td></tr>
           ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}<td></td></tr>` : ''}
@@ -2181,6 +2287,17 @@ function recalcMatchEntryTotals(scheduleId) {
     gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
   }
   let { aPoints, bPoints } = computeMatchPoints(gamesData);
+  let personalNote = '';
+  if (DB.settings.scoringMethod === 'personalImpact') {
+    const aOrder = readLineupOrder(`roster-body-${s.id}-a`, aPlayers);
+    const bOrder = readLineupOrder(`roster-body-${s.id}-b`, bPlayers);
+    const { aPts, bPts } = computePersonalImpactPoints(aOrder, bOrder, gamesCount, (side, pid, i) => {
+      const el = document.getElementById(`sc_${s.id}_${side}_${pid}_${i}`);
+      return el ? clampScore(el.value) : 0;
+    }, computeHandicap);
+    aPoints += aPts; bPoints += bPts;
+    personalNote = `<br><span style="color:#0369A1;">כולל נקודות אישיות: ${aPts} — ${bPts}</span>`;
+  }
   const aAbsent = teamFullyAbsent(aPlayers, p => `abs_${s.id}_a_${p.id}`);
   const bAbsent = teamFullyAbsent(bPlayers, p => `abs_${s.id}_b_${p.id}`);
   if (aAbsent) aPoints = 0;
@@ -2189,7 +2306,7 @@ function recalcMatchEntryTotals(scheduleId) {
   if (previewEl) {
     const note = (aAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(s.teamAId)} נעדרים — 0 נקודות לקבוצה.</span>` : '') +
       (bAbsent ? `<br><span style="color:#EF4444;">&#x26A0;&#xFE0F; כל שחקני ${teamName(s.teamBId)} נעדרים — 0 נקודות לקבוצה.</span>` : '');
-    previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(s.teamAId)} ${aPoints} — ${bPoints} ${teamName(s.teamBId)}${note}`;
+    previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(s.teamAId)} ${aPoints} — ${bPoints} ${teamName(s.teamBId)}${personalNote}${note}`;
   }
 }
 
@@ -2239,6 +2356,16 @@ async function saveMatchEntry(scheduleId) {
     });
   }
   let { aPoints, bPoints } = computeMatchPoints(games);
+  let teamAOrder = null, teamBOrder = null;
+  if (DB.settings.scoringMethod === 'personalImpact') {
+    teamAOrder = readLineupOrder(`roster-body-${s.id}-a`, aPlayers);
+    teamBOrder = readLineupOrder(`roster-body-${s.id}-b`, bPlayers);
+    const { aPts, bPts } = computePersonalImpactPoints(teamAOrder, teamBOrder, gamesCount, (side, pid, i) => {
+      const el = document.getElementById(`sc_${s.id}_${side}_${pid}_${i}`);
+      return el ? clampScore(el.value) : 0;
+    }, computeHandicap);
+    aPoints += aPts; bPoints += bPts;
+  }
   const teamAForfeit = teamFullyAbsent(aPlayers, p => `abs_${s.id}_a_${p.id}`);
   const teamBForfeit = teamFullyAbsent(bPlayers, p => `abs_${s.id}_b_${p.id}`);
   if (teamAForfeit) aPoints = 0;
@@ -2248,6 +2375,7 @@ async function saveMatchEntry(scheduleId) {
     id, date: s.date, scheduleId: s.id, teamAId: s.teamAId, teamBId: s.teamBId, games,
     teamAPoints: aPoints, teamBPoints: bPoints, teamAForfeit, teamBForfeit,
     handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
+    teamAOrder, teamBOrder,
     createdAt: new Date().toISOString()
   };
   DB.results.push(data);
@@ -2421,13 +2549,17 @@ function renderSettings() {
   document.getElementById('set-lane-start').value = DB.settings.laneStart ?? '';
   document.getElementById('set-lane-end').value = DB.settings.laneEnd ?? '';
   updateLanePreview();
-  const method = DB.settings.scoringMethod === 'roundRobin' ? 'roundRobin' : 'standard';
+  const method = ['roundRobin', 'personalImpact'].includes(DB.settings.scoringMethod) ? DB.settings.scoringMethod : 'standard';
   document.getElementById('set-scoring-standard').checked = method === 'standard';
   document.getElementById('set-scoring-roundrobin').checked = method === 'roundRobin';
+  document.getElementById('set-scoring-personal').checked = method === 'personalImpact';
+  document.getElementById('set-points-personal-game-win').value = DB.settings.pointsPerPersonalGameWin ?? 1;
 }
 
 function saveScoringMethod() {
-  DB.settings.scoringMethod = document.getElementById('set-scoring-roundrobin').checked ? 'roundRobin' : 'standard';
+  DB.settings.scoringMethod = document.getElementById('set-scoring-personal').checked ? 'personalImpact'
+    : document.getElementById('set-scoring-roundrobin').checked ? 'roundRobin' : 'standard';
+  DB.settings.pointsPerPersonalGameWin = parseFloat(document.getElementById('set-points-personal-game-win').value) || 0;
   dbSave();
   fbSet('settings', 'config', DB.settings);
   toast('✅ שיטת הניקוד נשמרה');
