@@ -337,7 +337,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
       </div>
       <div class="card" style="margin-bottom:20px; border-color:#FBBF24;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F9EA; נתוני דמו</h2>
-        <p style="font-size:13px;color:#64748B;margin-bottom:14px;"><strong>מוחק לגמרי</strong> את כל הקבוצות/שחקנים/לוח משחקים/תוצאות הקיימים, ויוצר מערך נקי במקומם: 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. אפשר להריץ שוב בכל עת לאיפוס מלא. זמין רק בסביבת ה-DEMO הזו.</p>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;"><strong>מוחק לגמרי</strong> את כל הקבוצות/שחקנים/לוח משחקים/תוצאות הקיימים, ויוצר מערך נקי במקומם: 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם מגדר אקראי והנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. אפשר להריץ שוב בכל עת לאיפוס מלא. זמין רק בסביבת ה-DEMO הזו.</p>
         <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; אפס וצור נתוני דמו</button>
         <button class="btn btn-danger" style="margin-top:8px;" onclick="clearAllSchedule()">&#x1F5D1;&#xFE0F; מחק את כל לוח המשחקים</button>
       </div>
@@ -1527,8 +1527,9 @@ async function seedDemoData() {
           const id = uid('plyr');
           const manualHandicap = 10 + Math.floor(Math.random() * (65 - 10 + 1));
           const name = names[nameIdx % names.length];
+          const gender = Math.random() < 0.5 ? 'גבר' : 'אישה';
           nameIdx++;
-          newPlayers.push({ id, name, teamId: team.id, manualHandicap, createdAt: new Date().toISOString() });
+          newPlayers.push({ id, name, teamId: team.id, gender, manualHandicap, createdAt: new Date().toISOString() });
         }
       });
       newPlayers.forEach(p => DB.players.push(p));
