@@ -265,7 +265,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
           <select id="players-filter-team" onchange="renderPlayers()"><option value="">כל הקבוצות</option></select>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>שם</th><th>קבוצה</th><th>ממוצע</th><th>הנדיקפ</th><th></th></tr></thead>
+          <thead><tr><th>שם</th><th>מגדר</th><th>קבוצה</th><th>ממוצע</th><th>הנדיקפ</th><th></th></tr></thead>
           <tbody id="players-tbody"></tbody>
         </table></div>
       </div>
@@ -465,6 +465,14 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div class="form-group">
       <label>קבוצה</label>
       <select id="player-team"><option value="">ללא קבוצה</option></select>
+    </div>
+    <div class="form-group">
+      <label>מגדר</label>
+      <select id="player-gender">
+        <option value="">לא צוין</option>
+        <option value="גבר">גבר</option>
+        <option value="אישה">אישה</option>
+      </select>
     </div>
     <div class="form-group">
       <label>הנדיקפ ידני</label>
@@ -1133,10 +1141,12 @@ function renderPlayers() {
   const list = DB.players
     .filter(p => !filter || p.teamId === filter)
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  const genderBadge = g => g ? `<span class="badge badge-gray">${g}</span>` : '—';
   const rows = list.map(p => {
     const st = playerStatsFor(p.id);
     return `<tr>
       <td>${p.name}</td>
+      <td>${genderBadge(p.gender)}</td>
       <td>${p.teamId ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}` : '<span class="badge badge-gray">ללא קבוצה</span>'}</td>
       <td>${st.games ? st.avg.toFixed(1) : '—'}</td>
       <td>${DB.settings.handicapEnabled ? computeHandicap(p.id) + (!st.games && p.manualHandicap != null ? ' <span style="color:#94A3B8; font-size:12px;">(ידני)</span>' : '') : '—'}</td>
@@ -1154,6 +1164,7 @@ function renderPlayers() {
   }).join('');
   const newRow = `<tr style="background:#F8FCFF;">
     <td><input type="text" id="new-player-name" placeholder="שם שחקן חדש" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
+    <td><select id="new-player-gender"><option value="">מגדר</option><option value="גבר">גבר</option><option value="אישה">אישה</option></select></td>
     <td><select id="new-player-team"><option value="">ללא קבוצה</option>${teamOpts}</select></td>
     <td style="color:#94A3B8;">—</td>
     <td><input type="number" id="new-player-handicap" placeholder="אוטומטי" min="0" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
@@ -1166,6 +1177,7 @@ function renderPlayers() {
 function saveInlinePlayer() {
   const nameEl = document.getElementById('new-player-name');
   const name = nameEl.value.trim();
+  const gender = document.getElementById('new-player-gender').value;
   const teamId = document.getElementById('new-player-team').value;
   const manualHandicapRaw = document.getElementById('new-player-handicap').value.trim();
   const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
@@ -1175,7 +1187,7 @@ function saveInlinePlayer() {
     return;
   }
   const id = uid('plyr');
-  const data = { id, name, teamId, manualHandicap, createdAt: new Date().toISOString() };
+  const data = { id, name, teamId, gender, manualHandicap, createdAt: new Date().toISOString() };
   DB.players.push(data);
   dbSave();
   fbSet('players', id, data);
@@ -1193,10 +1205,12 @@ function openPlayerModal(id) {
     const p = DB.players.find(x => x.id === id);
     document.getElementById('player-name').value = p.name;
     document.getElementById('player-team').value = p.teamId || '';
+    document.getElementById('player-gender').value = p.gender || '';
     document.getElementById('player-manual-handicap').value = p.manualHandicap ?? '';
   } else {
     document.getElementById('player-name').value = '';
     document.getElementById('player-team').value = '';
+    document.getElementById('player-gender').value = '';
     document.getElementById('player-manual-handicap').value = '';
   }
   openModalEl('player-modal');
@@ -1206,6 +1220,7 @@ function savePlayer() {
   const id = document.getElementById('player-id').value || uid('plyr');
   const name = document.getElementById('player-name').value.trim();
   const teamId = document.getElementById('player-team').value;
+  const gender = document.getElementById('player-gender').value;
   const manualHandicapRaw = document.getElementById('player-manual-handicap').value.trim();
   const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
   if (!name) { toast('נא להזין שם שחקן'); return; }
@@ -1214,7 +1229,7 @@ function savePlayer() {
     return;
   }
   const existing = DB.players.find(p => p.id === id);
-  const data = { id, name, teamId, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
+  const data = { id, name, teamId, gender, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
   if (existing) Object.assign(existing, data); else DB.players.push(data);
   dbSave();
   fbSet('players', id, data);
