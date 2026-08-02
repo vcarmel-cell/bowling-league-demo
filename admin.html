@@ -1624,12 +1624,22 @@ async function seedDemoData() {
               teamABonus: aBonus, teamBBonus: bBonus
             });
           }
-          const { aPoints, bPoints } = computeMatchPoints(games);
+          let { aPoints, bPoints } = computeMatchPoints(games);
+          let teamAOrder = null, teamBOrder = null;
+          if (DB.settings.scoringMethod === 'personalImpact') {
+            teamAOrder = aPlayers.map(p => p.id);
+            teamBOrder = bPlayers.map(p => p.id);
+            const { aPts, bPts } = computePersonalImpactPoints(teamAOrder, teamBOrder, gamesCount, (side, pid, i) => {
+              return (games[i].playerScores && games[i].playerScores[pid]) || 0;
+            }, computeHandicap);
+            aPoints += aPts; bPoints += bPts;
+          }
           const id = uid('res');
           const data = {
             id, date: s.date, scheduleId: s.id, teamAId: s.teamAId, teamBId: s.teamBId, games,
             teamAPoints: aPoints, teamBPoints: bPoints,
             handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
+            teamAOrder, teamBOrder,
             createdAt: new Date().toISOString()
           };
           DB.results.push(data);
