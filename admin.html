@@ -1344,9 +1344,13 @@ function updateAutoSchedulePreview() {
   const totalRounds = roundsPerPass * repeats;
   const totalGames = gamesPerPass * repeats;
   const endDate = start ? addDays(start, (totalRounds - 1) * interval) : null;
+  const laneOptions = generateLanePairs(DB.settings.laneStart, DB.settings.laneEnd);
   previewEl.innerHTML = `${roundsPerPass} מחזורים בכל מעבר (${gamesPerPass} משחקים) &times; ${repeats} חזרות = <strong>${totalRounds} מחזורים, ${totalGames} משחקים</strong> בסה"כ.` +
     (endDate ? `<br>מ-${fmtDate(start)} עד ${fmtDate(endDate)}.` : '') +
-    (n % 2 === 1 ? '<br>מספר קבוצות אי-זוגי — קבוצה אחת תנוח בכל מחזור.' : '');
+    (n % 2 === 1 ? '<br>מספר קבוצות אי-זוגי — קבוצה אחת תנוח בכל מחזור.' : '') +
+    (laneOptions.length
+      ? `<br>מסלולים יוקצו אוטומטית ויתחלפו כל מחזור (${laneOptions.join(', ')}).`
+      : '<br>לא הוגדרו מסלולים בהגדרות — המשחקים ייווצרו ללא מסלול קבוע.');
 }
 
 function generateAutoSchedule() {
@@ -1365,35 +1369,47 @@ function generateAutoSchedule() {
     ? `הפעולה תמחק ${existingUpcoming.length} משחקים מתוזמנים קיימים (שלא הוזנה עבורם תוצאה) ותחליף אותם בתוכנית החדשה. משחקים שכבר הושלמו לא יימחקו. להמשיך?`
     : 'ליצור תוכנית משחקים חדשה?';
 
-  confirmAction('יצירת תוכנית משחקים', msg, () => {
+  confirmAction('יצירת תוכנית משחקים', msg, async () => {
+    // Lane pairs rotate by round (offset by globalRound) so a team doesn't
+    // keep landing on the same lanes match after match across the season.
+    const laneOptions = generateLanePairs(DB.settings.laneStart, DB.settings.laneEnd);
+
     existingUpcoming.forEach(s => fbDel('schedule', s.id));
     DB.schedule = DB.schedule.filter(s => s.status === 'completed');
 
     const rounds = roundRobinRounds(DB.teams.map(t => t.id));
+    const newSchedule = [];
     let globalRound = 0;
     for (let pass = 0; pass < repeats; pass++) {
       rounds.forEach(pairs => {
         const date = addDays(start, globalRound * interval);
         const roundLabel = `מחזור ${globalRound + 1}`;
-        pairs.forEach(([teamA, teamB]) => {
+        pairs.forEach(([teamA, teamB], gameIdx) => {
           const swap = pass % 2 === 1; // alternate home/away order on repeat passes
+          const lane = laneOptions.length ? laneOptions[(gameIdx + globalRound) % laneOptions.length] : '';
           const id = uid('sched');
           const data = {
-            id, date, time, lane: '', round: roundLabel,
+            id, date, time, lane, round: roundLabel,
             teamAId: swap ? teamB : teamA,
             teamBId: swap ? teamA : teamB,
             status: 'scheduled'
           };
-          DB.schedule.push(data);
-          fbSet('schedule', id, data);
+          newSchedule.push(data);
         });
         globalRound++;
       });
     }
+    newSchedule.forEach(data => DB.schedule.push(data));
     dbSave();
     renderSchedule();
     closeModal('auto-schedule-modal');
-    toast(`✅ נוצרה תוכנית עם ${globalRound} מחזורים`);
+
+    try {
+      await Promise.all(newSchedule.map(data => fbSet('schedule', data.id, data)));
+      toast(`✅ נוצרה תוכנית עם ${globalRound} מחזורים`);
+    } catch(e) {
+      toast('⚠️ חלק מהמשחקים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+    }
   }, 'צור תוכנית');
 }
 
