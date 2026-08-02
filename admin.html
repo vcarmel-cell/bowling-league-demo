@@ -180,6 +180,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
 .print-form-game th:first-child, .print-form-game td:first-child { text-align: right; }
 .print-form-game .score-cell { height: 30px; }
 .print-form-game .total-row td { font-weight: 800; background: #F0F9FF; }
+.print-form-game .hcp-row td { font-style: italic; color: #0369A1; background: #F8FCFF; }
 .print-form-game .points-label { font-size: 13px; font-weight: 700; margin: 12px 0 6px; color: #0C4A6E; }
 
 @media print {
@@ -1685,10 +1686,15 @@ function printResultsForm() {
 
   function teamTable(teamId) {
     const totalCells = Array.from({ length: gamesCount }, () => `<td class="score-cell"></td>`).join('');
+    const hcpRow = hcpOn ? (() => {
+      const hcpSum = teamHandicapSum(teamId);
+      const hcpCells = Array.from({ length: gamesCount }, () => `<td>${hcpSum}</td>`).join('');
+      return `<tr class="hcp-row"><td>סך הנדיקפ קבוצתי</td>${hcpCells}<td>${hcpSum}</td></tr>`;
+    })() : '';
     return `<table>
       ${colgroup}
       <thead><tr><th>${teamName(teamId)}</th>${gamesHeader}<th>סה"כ אישי</th></tr></thead>
-      <tbody>${playerRows(teamId)}</tbody>
+      <tbody>${playerRows(teamId)}${hcpRow}</tbody>
       <tfoot><tr class="total-row"><td>סה"כ פינים קבוצתי</td>${totalCells}<td class="score-cell"></td></tr></tfoot>
     </table>`;
   }
