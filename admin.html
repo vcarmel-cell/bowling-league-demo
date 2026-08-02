@@ -1857,19 +1857,20 @@ function buildEditResultRoster(r) {
       }).join('');
       const hcpVal = (r.playerHandicaps && r.playerHandicaps[p.id]) || 0;
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${hcpVal}</td>` : '';
-      return `<tr><td>${p.name}</td>${hcpCell}${cells}</tr>`;
+      const absentCell = `<td style="text-align:center;"><input type="checkbox" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markEditPlayerAbsent('${side}','${p.id}', this.checked)"></td>`;
+      return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-hcp-${side}-${i}" style="text-align:center;">0</td>`).join('');
-    const colspan = gamesCount + (hcpOn ? 2 : 1);
+    const colspan = gamesCount + (hcpOn ? 2 : 1) + 1;
     return `<div class="roster-card">
       <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}</h4>
       <div class="table-wrap"><table>
-        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}</tr></thead>
+        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}<th>נעדר</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
         <tfoot>
-          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}</tr>
-          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}</tr>` : ''}
+          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}<td></td></tr>
+          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}<td></td></tr>` : ''}
         </tfoot>
       </table></div>
     </div>`;
@@ -1881,6 +1882,21 @@ function buildEditResultRoster(r) {
 function editResultHcpSum(r, teamId) {
   return DB.players.filter(p => p.teamId === teamId)
     .reduce((s, p) => s + ((r.playerHandicaps && r.playerHandicaps[p.id]) || 0), 0);
+}
+
+function markEditPlayerAbsent(side, playerId, checked) {
+  const r = DB.results.find(x => x.id === document.getElementById('edit-result-id').value);
+  if (!r) return;
+  const gamesCount = (r.games || []).length;
+  const st = playerStatsFor(playerId);
+  const avg = st.games ? Math.round(st.avg) : 0;
+  for (let i = 0; i < gamesCount; i++) {
+    const el = document.getElementById(`edit_${side}_${playerId}_${i}`);
+    if (!el) continue;
+    el.disabled = checked;
+    if (checked) el.value = avg;
+  }
+  recalcEditResultTotals();
 }
 
 function recalcEditResultTotals() {
@@ -1992,19 +2008,20 @@ function buildMatchEntryCard(s) {
         `<td><input type="number" class="score-input" min="0" max="300" id="sc_${s.id}_${side}_${p.id}_${i}" oninput="recalcMatchEntryTotals('${s.id}')"></td>`
       ).join('');
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${computeHandicap(p.id)}</td>` : '';
-      return `<tr><td>${p.name}</td>${hcpCell}${cells}</tr>`;
+      const absentCell = `<td style="text-align:center;"><input type="checkbox" title="נעדר — ימולא אוטומטית לפי הממוצע האישי" onchange="markPlayerAbsent('${s.id}','${side}','${p.id}', this.checked)"></td>`;
+      return `<tr><td>${p.name}</td>${hcpCell}${cells}${absentCell}</tr>`;
     }).join('');
     const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-raw-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-hcp-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
-    const colspan = gamesCount + (hcpOn ? 2 : 1);
+    const colspan = gamesCount + (hcpOn ? 2 : 1) + 1;
     return `<div class="roster-card">
       <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}</h4>
       <div class="table-wrap"><table>
-        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}</tr></thead>
+        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}<th>נעדר</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
         <tfoot>
-          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}</tr>
-          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}</tr>` : ''}
+          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}<td></td></tr>
+          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}<td></td></tr>` : ''}
         </tfoot>
       </table></div>
     </div>`;
@@ -2038,6 +2055,22 @@ function highScoreBonus(rawScore) {
   if (rawScore >= 250) return 1;
   if (rawScore >= 225) return 0.5;
   return 0;
+}
+
+// Marking a player absent auto-fills every game of this match with their
+// personal average (rounded) and locks the inputs so it isn't overwritten
+// by mistake — unchecking restores manual entry.
+function markPlayerAbsent(scheduleId, side, playerId, checked) {
+  const gamesCount = DB.settings.gamesPerMatch || 3;
+  const st = playerStatsFor(playerId);
+  const avg = st.games ? Math.round(st.avg) : 0;
+  for (let i = 0; i < gamesCount; i++) {
+    const el = document.getElementById(`sc_${scheduleId}_${side}_${playerId}_${i}`);
+    if (!el) continue;
+    el.disabled = checked;
+    if (checked) el.value = avg;
+  }
+  recalcMatchEntryTotals(scheduleId);
 }
 
 function recalcMatchEntryTotals(scheduleId) {
