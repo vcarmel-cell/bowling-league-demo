@@ -334,7 +334,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
       </div>
       <div class="card" style="margin-bottom:20px; border-color:#FBBF24;">
         <h2 style="margin-bottom:14px; font-size:16px;">&#x1F9EA; נתוני דמו</h2>
-        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">יוצר 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), ותוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי). זמין רק בסביבת ה-DEMO הזו.</p>
+        <p style="font-size:13px;color:#64748B;margin-bottom:14px;">יוצר 10 קבוצות ("קבוצה 1".."קבוצה 10"), 30 שחקנים לדוגמה (3 לכל קבוצה, עם הנדיקפ ידני אקראי בין 10-65), תוכנית משחקים מלאה (סבב יחיד, החל מהיום, מחזור שבועי), ותוצאות אקראיות מלאות ל-4 המחזורים הראשונים. זמין רק בסביבת ה-DEMO הזו.</p>
         <button class="btn btn-secondary" style="border-color:#FBBF24; color:#B45309;" onclick="seedDemoData()">&#x1F9EA; צור נתוני דמו</button>
       </div>
       <div class="card" style="margin-bottom:20px;">
@@ -1464,10 +1464,18 @@ function shuffled(arr) {
   return a;
 }
 
+// Averaging three uniforms gives a rough bell curve centered ~150 (typical
+// recreational-league game), spanning roughly 60-240 — good enough for demo
+// data without needing a real distribution model.
+function randomGameScore() {
+  const r = (Math.random() + Math.random() + Math.random()) / 3;
+  return Math.round(60 + r * 180);
+}
+
 async function seedDemoData() {
   confirmAction(
     'יצירת נתוני דמו',
-    'הפעולה תיצור 10 קבוצות ו-30 שחקנים לדוגמה (עם הנדיקפ ידני אקראי בין 10-65) ותבנה תוכנית משחקים מלאה. להמשיך?',
+    'הפעולה תיצור 10 קבוצות ו-30 שחקנים לדוגמה (עם הנדיקפ ידני אקראי בין 10-65), תבנה תוכנית משחקים מלאה, ותמלא תוצאות אקראיות ל-4 המחזורים הראשונים. להמשיך?',
     async () => {
       // 1. Teams — top up to 10, keep any existing teams as-is
       const existingTeamCount = DB.teams.length;
@@ -1522,14 +1530,63 @@ async function seedDemoData() {
         });
       });
       newSchedule.forEach(s => DB.schedule.push(s));
+
+      // 4. Results — auto-fill the first 4 rounds with random scores so the
+      // demo shows a populated standings/results state immediately. Rounds
+      // are processed in chronological order so each round's handicaps
+      // reflect the averages built up by the rounds before it, same as real
+      // play.
+      const gamesCount = DB.settings.gamesPerMatch || 3;
+      const roundDates = [...new Set(newSchedule.map(s => s.date))].sort().slice(0, 4);
+      const newResults = [];
+      roundDates.forEach(date => {
+        newSchedule.filter(s => s.date === date).forEach(s => {
+          const aPlayers = DB.players.filter(p => p.teamId === s.teamAId);
+          const bPlayers = DB.players.filter(p => p.teamId === s.teamBId);
+          const playerHandicaps = {};
+          [...aPlayers, ...bPlayers].forEach(p => { playerHandicaps[p.id] = computeHandicap(p.id); });
+          const aHcpSum = teamHandicapSum(s.teamAId);
+          const bHcpSum = teamHandicapSum(s.teamBId);
+
+          const games = [];
+          for (let i = 0; i < gamesCount; i++) {
+            const playerScores = {};
+            let aRaw = 0, bRaw = 0, aBonus = 0, bBonus = 0;
+            aPlayers.forEach(p => { const v = randomGameScore(); playerScores[p.id] = v; aRaw += v; aBonus += highScoreBonus(v); });
+            bPlayers.forEach(p => { const v = randomGameScore(); playerScores[p.id] = v; bRaw += v; bBonus += highScoreBonus(v); });
+            games.push({
+              gameNum: i + 1, playerScores,
+              teamARawTotal: aRaw, teamBRawTotal: bRaw,
+              teamAHcpTotal: aRaw + aHcpSum, teamBHcpTotal: bRaw + bHcpSum,
+              teamABonus: aBonus, teamBBonus: bBonus
+            });
+          }
+          const { aPoints, bPoints } = computeMatchPoints(games);
+          const id = uid('res');
+          const data = {
+            id, date: s.date, scheduleId: s.id, teamAId: s.teamAId, teamBId: s.teamBId, games,
+            teamAPoints: aPoints, teamBPoints: bPoints,
+            handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
+            createdAt: new Date().toISOString()
+          };
+          DB.results.push(data);
+          newResults.push(data);
+          s.status = 'completed';
+        });
+      });
+
       dbSave();
       renderSchedule();
+      renderResults();
 
       try {
-        await Promise.all(newSchedule.map(s => fbSet('schedule', s.id, s)));
-        toast(`✅ נוצרו ${newTeams.length} קבוצות, ${newPlayers.length} שחקנים, ו-${newSchedule.length} משחקים בלוח`);
+        await Promise.all([
+          ...newSchedule.map(s => fbSet('schedule', s.id, s)),
+          ...newResults.map(r => fbSet('results', r.id, r))
+        ]);
+        toast(`✅ נוצרו ${newTeams.length} קבוצות, ${newPlayers.length} שחקנים, ${newSchedule.length} משחקים בלוח, ו-${newResults.length} תוצאות ל-4 המחזורים הראשונים`);
       } catch(e) {
-        toast('⚠️ חלק מהמשחקים בלוח לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+        toast('⚠️ חלק מהנתונים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
       }
     },
     'צור נתוני דמו'
