@@ -193,6 +193,7 @@ function renderContent(DB) {
     });
   }
   const roundAllStars = roundEntries.sort((a, b) => b.total - a.total).slice(0, 5);
+  const lastRoundResults = latestDate ? DB.results.filter(r => r.date === latestDate) : [];
 
   // All-time single-game high scores (top 3)
   const singleGameEntries = [];
@@ -281,6 +282,24 @@ function renderContent(DB) {
                 <td>${teamCell(e.pid)}</td>
                 <td><strong>${e.total}</strong></td>
               </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>&#x1F4CB; כל המשחקים מהמחזור האחרון${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>פינים</th><th>נקודות</th></tr></thead>
+          <tbody>
+            ${lastRoundResults.length ? lastRoundResults.map(r => {
+              const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
+              const bPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'B'), 0);
+              return `<tr>
+                <td><span class="color-dot" style="background:${teamColor(r.teamAId)}"></span>${teamName(r.teamAId)}</td>
+                <td><span class="color-dot" style="background:${teamColor(r.teamBId)}"></span>${teamName(r.teamBId)}</td>
+                <td>${aPins} : ${bPins}</td>
+                <td><span class="badge">${r.teamAPoints} : ${r.teamBPoints}</span></td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
           </tbody>
         </table></div>
       </div>
