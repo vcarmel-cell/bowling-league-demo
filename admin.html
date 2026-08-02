@@ -544,6 +544,20 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
   </div>
 </div>
 
+<!-- EDIT RESULT MODAL -->
+<div id="edit-result-modal" class="modal-overlay hidden">
+  <div class="modal" style="width:720px; max-width:95vw;">
+    <h2>&#x270F;&#xFE0F; עריכת תוצאה</h2>
+    <input type="hidden" id="edit-result-id">
+    <div id="edit-result-wrap"></div>
+    <div id="edit-result-points" style="font-size:13px; color:#0369A1; margin:12px 0;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('edit-result-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveEditResult()">&#x1F4BE; שמור שינויים</button>
+    </div>
+  </div>
+</div>
+
 <!-- CONFIRM MODAL -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal" style="width:350px; text-align:center;">
@@ -1521,6 +1535,7 @@ function renderResults() {
       <td><span class="badge badge-blue">${r.teamAPoints} : ${r.teamBPoints}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn btn-secondary btn-sm" onclick="openResultDetail('${r.id}')">פרטים</button>
+        <button class="btn btn-secondary btn-sm" onclick="openEditResult('${r.id}')">&#x270F;&#xFE0F; ערוך</button>
         <button class="btn btn-danger btn-sm" onclick="deleteResult('${r.id}')">מחק</button>
       </td>
     </tr>`;
@@ -1575,6 +1590,124 @@ function deleteResult(id) {
     renderSchedule();
     toast('🗑️ התוצאה נמחקה');
   });
+}
+
+// ─── EDIT RESULT ─────────────────────────────────────────────
+// Edits reuse the handicap snapshot frozen on the result at save time
+// (r.playerHandicaps / r.handicapEnabled) rather than recomputing live —
+// otherwise correcting an old round could shift depending on what's
+// happened in the standings since.
+function openEditResult(resultId) {
+  const r = DB.results.find(x => x.id === resultId);
+  if (!r) return;
+  document.getElementById('edit-result-id').value = resultId;
+  document.getElementById('edit-result-wrap').innerHTML = buildEditResultRoster(r);
+  recalcEditResultTotals();
+  openModalEl('edit-result-modal');
+}
+
+function buildEditResultRoster(r) {
+  const gamesCount = (r.games || []).length;
+  const hcpOn = !!r.handicapEnabled;
+
+  function buildTeamBlock(teamId, side) {
+    const players = DB.players.filter(p => p.teamId === teamId);
+    const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
+    const rows = players.map(p => {
+      const cells = Array.from({ length: gamesCount }, (_, i) => {
+        const g = r.games[i];
+        const existing = g && g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '';
+        return `<td><input type="number" class="score-input" min="0" max="300" id="edit_${side}_${p.id}_${i}" value="${existing}" oninput="recalcEditResultTotals()"></td>`;
+      }).join('');
+      const hcpVal = (r.playerHandicaps && r.playerHandicaps[p.id]) || 0;
+      const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${hcpVal}</td>` : '';
+      return `<tr><td>${p.name}</td>${hcpCell}${cells}</tr>`;
+    }).join('');
+    const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="edit-hcp-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const colspan = gamesCount + (hcpOn ? 2 : 1);
+    return `<div class="roster-card">
+      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
+        <tfoot>
+          <tr class="roster-total-row"><td>סה"כ טהור</td>${hcpOn ? '<td></td>' : ''}${rawCells}</tr>
+          ${hcpOn ? `<tr class="roster-total-row"><td>סה"כ עם הנדיקפ</td><td></td>${hcpCells}</tr>` : ''}
+        </tfoot>
+      </table></div>
+    </div>`;
+  }
+
+  return buildTeamBlock(r.teamAId, 'a') + buildTeamBlock(r.teamBId, 'b');
+}
+
+function editResultHcpSum(r, teamId) {
+  return DB.players.filter(p => p.teamId === teamId)
+    .reduce((s, p) => s + ((r.playerHandicaps && r.playerHandicaps[p.id]) || 0), 0);
+}
+
+function recalcEditResultTotals() {
+  const r = DB.results.find(x => x.id === document.getElementById('edit-result-id').value);
+  if (!r) return;
+  const gamesCount = (r.games || []).length;
+  const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
+  const aHcpSum = editResultHcpSum(r, r.teamAId);
+  const bHcpSum = editResultHcpSum(r, r.teamBId);
+  const gamesData = [];
+  for (let i = 0; i < gamesCount; i++) {
+    let aRaw = 0, bRaw = 0, aBonus = 0, bBonus = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`edit_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; aRaw += v; aBonus += highScoreBonus(v); });
+    bPlayers.forEach(p => { const el = document.getElementById(`edit_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; bRaw += v; bBonus += highScoreBonus(v); });
+    const aHcp = aRaw + aHcpSum, bHcp = bRaw + bHcpSum;
+    const rawAEl = document.getElementById(`edit-raw-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
+    const rawBEl = document.getElementById(`edit-raw-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
+    const hcpAEl = document.getElementById(`edit-hcp-a-${i}`); if (hcpAEl) hcpAEl.textContent = aHcp;
+    const hcpBEl = document.getElementById(`edit-hcp-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
+    gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
+  }
+  const { aPoints, bPoints } = computeMatchPoints(gamesData);
+  document.getElementById('edit-result-points').innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(r.teamAId)} ${aPoints} — ${bPoints} ${teamName(r.teamBId)}`;
+}
+
+async function saveEditResult() {
+  const r = DB.results.find(x => x.id === document.getElementById('edit-result-id').value);
+  if (!r) return;
+  const gamesCount = (r.games || []).length;
+  const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
+  const aHcpSum = editResultHcpSum(r, r.teamAId);
+  const bHcpSum = editResultHcpSum(r, r.teamBId);
+
+  const games = [];
+  for (let i = 0; i < gamesCount; i++) {
+    const playerScores = {};
+    let aRaw = 0, bRaw = 0, aBonus = 0, bBonus = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`edit_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; aRaw += v; aBonus += highScoreBonus(v); });
+    bPlayers.forEach(p => { const el = document.getElementById(`edit_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; bRaw += v; bBonus += highScoreBonus(v); });
+    games.push({
+      gameNum: i + 1, playerScores,
+      teamARawTotal: aRaw, teamBRawTotal: bRaw,
+      teamAHcpTotal: aRaw + aHcpSum, teamBHcpTotal: bRaw + bHcpSum,
+      teamABonus: aBonus, teamBBonus: bBonus
+    });
+  }
+  const { aPoints, bPoints } = computeMatchPoints(games);
+  r.games = games;
+  r.teamAPoints = aPoints;
+  r.teamBPoints = bPoints;
+  r.updatedAt = new Date().toISOString();
+  dbSave();
+  closeModal('edit-result-modal');
+  renderResults();
+
+  try {
+    await fbSet('results', r.id, r);
+    toast('✅ התוצאה עודכנה');
+  } catch(e) {
+    toast('⚠️ עודכן מקומית אך לא בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+  }
 }
 
 // ─── RESULT ENTRY ────────────────────────────────────────────
