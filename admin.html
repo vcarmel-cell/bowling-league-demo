@@ -175,10 +175,12 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
 .print-form-game { border: 1.5px solid #0C4A6E; border-radius: 10px; padding: 16px; margin-bottom: 24px; page-break-inside: avoid; }
 .print-form-game h3 { font-size: 16px; margin-bottom: 4px; }
 .print-form-game .meta { font-size: 12px; color: #475569; margin-bottom: 12px; }
-.print-form-game table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-.print-form-game th, .print-form-game td { border: 1px solid #94A3B8; padding: 8px; font-size: 13px; text-align: center; }
+.print-form-game table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 12px; }
+.print-form-game th, .print-form-game td { border: 1px solid #94A3B8; padding: 8px; font-size: 13px; text-align: center; overflow-wrap: break-word; }
 .print-form-game th:first-child, .print-form-game td:first-child { text-align: right; }
 .print-form-game .score-cell { height: 30px; }
+.print-form-game .total-row td { font-weight: 800; background: #F0F9FF; }
+.print-form-game .points-label { font-size: 13px; font-weight: 700; margin: 12px 0 6px; color: #0C4A6E; }
 
 @media print {
   body * { visibility: hidden; }
@@ -1664,7 +1666,14 @@ function printResultsForm() {
   if (!games.length) { toast('אין משחקים בתאריך זה'); return; }
   const gamesCount = DB.settings.gamesPerMatch || 3;
   const hcpOn = DB.settings.handicapEnabled;
-  const header = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+  const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+
+  // Fixed column widths (name / N games / total) shared by every table on
+  // the page, so all the grids line up instead of each auto-sizing to its
+  // own content.
+  const nameW = 30, totalW = 14;
+  const gameW = Math.floor((100 - nameW - totalW) / gamesCount);
+  const colgroup = `<colgroup><col style="width:${nameW}%">${Array.from({ length: gamesCount }, () => `<col style="width:${gameW}%">`).join('')}<col style="width:${totalW}%"></colgroup>`;
 
   function playerRows(teamId) {
     const players = DB.players.filter(p => p.teamId === teamId);
@@ -1674,18 +1683,37 @@ function printResultsForm() {
     ).join('') || `<tr><td colspan="${gamesCount + 2}">אין שחקנים בקבוצה זו</td></tr>`;
   }
 
+  function teamTable(teamId) {
+    const totalCells = Array.from({ length: gamesCount }, () => `<td class="score-cell"></td>`).join('');
+    return `<table>
+      ${colgroup}
+      <thead><tr><th>${teamName(teamId)}</th>${gamesHeader}<th>סה"כ אישי</th></tr></thead>
+      <tbody>${playerRows(teamId)}</tbody>
+      <tfoot><tr class="total-row"><td>סה"כ פינים קבוצתי</td>${totalCells}<td class="score-cell"></td></tr></tfoot>
+    </table>`;
+  }
+
+  function pointsTable(s) {
+    const cellsA = Array.from({ length: gamesCount }, () => `<td class="score-cell"></td>`).join('');
+    const cellsB = Array.from({ length: gamesCount }, () => `<td class="score-cell"></td>`).join('');
+    return `<table class="points-table">
+      ${colgroup}
+      <thead><tr><th>נקודות</th>${gamesHeader}<th>סה"כ נקודות</th></tr></thead>
+      <tbody>
+        <tr><td>${teamName(s.teamAId)}</td>${cellsA}<td class="score-cell"></td></tr>
+        <tr><td>${teamName(s.teamBId)}</td>${cellsB}<td class="score-cell"></td></tr>
+      </tbody>
+    </table>`;
+  }
+
   const formsHtml = games.map(s => `
     <div class="print-form-game">
       <h3>${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}</h3>
       <div class="meta">${fmtDate(s.date)}${s.time ? ' · שעה ' + s.time : ''}${s.lane ? ' · מסלול ' + s.lane : ''}${s.round ? ' · ' + s.round : ''}</div>
-      <table>
-        <thead><tr><th>${teamName(s.teamAId)}</th>${header}<th>סה"כ</th></tr></thead>
-        <tbody>${playerRows(s.teamAId)}</tbody>
-      </table>
-      <table>
-        <thead><tr><th>${teamName(s.teamBId)}</th>${header}<th>סה"כ</th></tr></thead>
-        <tbody>${playerRows(s.teamBId)}</tbody>
-      </table>
+      ${teamTable(s.teamAId)}
+      ${teamTable(s.teamBId)}
+      <div class="points-label">תוצאות בנקודות (למילוי ע"י השחקנים)</div>
+      ${pointsTable(s)}
     </div>
   `).join('');
 
