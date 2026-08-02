@@ -299,41 +299,10 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <!-- RESULT ENTRY (hidden from nav) -->
     <div id="page-result-entry" class="page">
       <div class="page-header">
-        <div><h1>&#x1F3B3; הזנת תוצאה</h1><p>בחר קבוצות והזן ציון סופי לכל שחקן בכל משחק</p></div>
+        <div><h1>&#x1F3B3; הזנת תוצאות</h1><p id="re-round-subtitle">כל המשחקים של המחזור הבא בתור להזנה</p></div>
         <button class="btn btn-secondary" onclick="showPage('results')">&#x2190; חזרה לתוצאות</button>
       </div>
-      <div class="card" style="margin-bottom:20px;">
-        <div class="form-row">
-          <div class="form-group">
-            <label>משחק מתוזמן (אופציונלי)</label>
-            <select id="re-schedule-select" onchange="onScheduleSelectChange()"><option value="">-- ללא --</option></select>
-          </div>
-          <div class="form-group">
-            <label>תאריך</label>
-            <input type="date" id="re-date">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>קבוצה א׳</label>
-            <select id="re-team-a" onchange="renderResultEntryRoster()"><option value="">בחר קבוצה</option></select>
-          </div>
-          <div class="form-group">
-            <label>קבוצה ב׳</label>
-            <select id="re-team-b" onchange="renderResultEntryRoster()"><option value="">בחר קבוצה</option></select>
-          </div>
-        </div>
-        <div class="form-group" style="max-width:220px;">
-          <label>מספר משחקים בסדרה</label>
-          <input type="number" id="re-games-count" min="1" max="10" value="3" onchange="renderResultEntryRoster()">
-        </div>
-      </div>
-      <div id="re-roster-wrap"></div>
-      <div id="re-points-preview" class="card" style="margin-top:18px; display:none;"></div>
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
-        <button class="btn btn-secondary" onclick="showPage('results')">ביטול</button>
-        <button class="btn btn-primary" onclick="saveResultEntry()">&#x1F4BE; שמור תוצאה</button>
-      </div>
+      <div id="re-matches-wrap"></div>
     </div>
 
     <!-- STANDINGS -->
@@ -1038,7 +1007,7 @@ function teamPlayerCount(teamId, excludePlayerId) {
 
 function populateTeamSelects() {
   const opts = DB.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-  ['sch-team-a', 'sch-team-b', 're-team-a', 're-team-b'].forEach(elId => {
+  ['sch-team-a', 'sch-team-b'].forEach(elId => {
     const el = document.getElementById(elId);
     if (!el) return;
     const placeholder = el.querySelector('option[value=""]');
@@ -1197,8 +1166,15 @@ function deletePlayer(id) {
 // ─── SCHEDULE ────────────────────────────────────────────────
 function renderSchedule() {
   const list = [...DB.schedule].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  document.getElementById('schedule-tbody').innerHTML = list.map(s => `
-    <tr>
+  const roundDate = getCurrentRoundDate();
+  document.getElementById('schedule-tbody').innerHTML = list.map(s => {
+    let actionBtn = '';
+    if (s.status !== 'completed') {
+      actionBtn = s.date === roundDate
+        ? `<button class="btn btn-success btn-sm" onclick="openResultEntry()">הזן תוצאה</button>`
+        : `<span class="badge badge-gray" title="נפתח להזנה רק אחרי שכל תוצאות המחזור הקודם יוזנו">&#x1F512; ממתין</span>`;
+    }
+    return `<tr>
       <td>${fmtDate(s.date)}</td>
       <td>${s.time || '—'}</td>
       <td>${s.lane || '—'}</td>
@@ -1207,12 +1183,12 @@ function renderSchedule() {
       <td>${teamName(s.teamBId)}</td>
       <td>${s.status === 'completed' ? '<span class="badge badge-green">הושלם</span>' : '<span class="badge badge-yellow">מתוזמן</span>'}</td>
       <td style="white-space:nowrap;">
-        ${s.status !== 'completed' ? `<button class="btn btn-success btn-sm" onclick="openResultEntry('${s.id}')">הזן תוצאה</button>` : ''}
+        ${actionBtn}
         <button class="btn btn-secondary btn-sm" onclick="openScheduleModal('${s.id}')">ערוך</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}')">מחק</button>
       </td>
-    </tr>
-  `).join('') || '<tr><td colspan="8" style="text-align:center; color:#94A3B8;">אין משחקים בלוח</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center; color:#94A3B8;">אין משחקים בלוח</td></tr>';
 }
 
 function openScheduleModal(id) {
@@ -1602,61 +1578,58 @@ function deleteResult(id) {
 }
 
 // ─── RESULT ENTRY ────────────────────────────────────────────
-function openResultEntry(scheduleId) {
-  const selectEl = document.getElementById('re-schedule-select');
-  const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  selectEl.innerHTML = '<option value="">-- ללא --</option>' + upcoming.map(s =>
-    `<option value="${s.id}">${fmtDate(s.date)} — ${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}</option>`
-  ).join('');
-  document.getElementById('re-date').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('re-games-count').value = DB.settings.gamesPerMatch || 3;
-  document.getElementById('re-team-a').value = '';
-  document.getElementById('re-team-b').value = '';
-  document.getElementById('re-roster-wrap').innerHTML = '';
-  document.getElementById('re-points-preview').style.display = 'none';
-  if (scheduleId) {
-    selectEl.value = scheduleId;
-    onScheduleSelectChange();
-  }
+// Entry is round-gated: only the games on the oldest date that still has
+// unfinished games are enterable. Later rounds only appear once every game
+// on the current round has a saved result.
+function getCurrentRoundDate() {
+  const pending = DB.schedule.filter(s => s.status !== 'completed');
+  if (!pending.length) return null;
+  return pending.reduce((min, s) => (s.date < min ? s.date : min), pending[0].date);
+}
+
+function openResultEntry() {
+  renderResultEntryPage();
   showPage('result-entry');
 }
 
-function onScheduleSelectChange() {
-  const id = document.getElementById('re-schedule-select').value;
-  if (!id) return;
-  const s = DB.schedule.find(x => x.id === id);
-  if (!s) return;
-  document.getElementById('re-date').value = s.date || '';
-  document.getElementById('re-team-a').value = s.teamAId || '';
-  document.getElementById('re-team-b').value = s.teamBId || '';
-  renderResultEntryRoster();
+function renderResultEntryPage() {
+  const roundDate = getCurrentRoundDate();
+  const subtitleEl = document.getElementById('re-round-subtitle');
+  const wrapEl = document.getElementById('re-matches-wrap');
+  if (!roundDate) {
+    subtitleEl.textContent = 'אין משחקים ממתינים להזנה';
+    wrapEl.innerHTML = `<div class="card"><p style="text-align:center;color:#94A3B8;padding:30px;">כל המשחקים המתוזמנים כבר הוזנו. אפשר להוסיף עוד משחקים בלוח המשחקים.</p></div>`;
+    return;
+  }
+  const roundMatches = DB.schedule.filter(s => s.status !== 'completed' && s.date === roundDate);
+  subtitleEl.textContent = `מחזור ${fmtDate(roundDate)} — ${roundMatches.length} משחק${roundMatches.length === 1 ? '' : 'ים'} ממתינים להזנה`;
+  wrapEl.innerHTML = roundMatches.map(s => buildMatchEntryCard(s)).join('');
+  roundMatches.forEach(s => recalcMatchEntryTotals(s.id));
 }
 
-function renderResultEntryRoster() {
-  const teamAId = document.getElementById('re-team-a').value;
-  const teamBId = document.getElementById('re-team-b').value;
-  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
-  const wrap = document.getElementById('re-roster-wrap');
-  document.getElementById('re-points-preview').style.display = 'none';
-  if (!teamAId || !teamBId) { wrap.innerHTML = ''; return; }
-  if (teamAId === teamBId) { wrap.innerHTML = '<p style="color:#EF4444;">נא לבחור שתי קבוצות שונות</p>'; return; }
+function teamHandicapSum(teamId) {
+  return DB.players.filter(p => p.teamId === teamId).reduce((s, p) => s + computeHandicap(p.id), 0);
+}
 
-  function buildTeamCard(teamId, side) {
+function buildMatchEntryCard(s) {
+  const gamesCount = DB.settings.gamesPerMatch || 3;
+  const hcpOn = DB.settings.handicapEnabled;
+
+  function buildTeamBlock(teamId, side) {
     const players = DB.players.filter(p => p.teamId === teamId);
-    const hcpOn = DB.settings.handicapEnabled;
     const header = Array.from({ length: gamesCount }, (_, i) => `<th style="text-align:center;">משחק ${i + 1}</th>`).join('');
     const rows = players.map(p => {
       const cells = Array.from({ length: gamesCount }, (_, i) =>
-        `<td><input type="number" class="score-input" min="0" max="300" id="sc_${side}_${p.id}_${i}" oninput="recalcResultTotals()"></td>`
+        `<td><input type="number" class="score-input" min="0" max="300" id="sc_${s.id}_${side}_${p.id}_${i}" oninput="recalcMatchEntryTotals('${s.id}')"></td>`
       ).join('');
       const hcpCell = hcpOn ? `<td style="text-align:center; color:#0369A1;">${computeHandicap(p.id)}</td>` : '';
       return `<tr><td>${p.name}</td>${hcpCell}${cells}</tr>`;
     }).join('');
-    const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="team-raw-${side}-${i}" style="text-align:center;">0</td>`).join('');
-    const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="team-hcp-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const rawCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-raw-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
+    const hcpCells = Array.from({ length: gamesCount }, (_, i) => `<td id="mt-hcp-${s.id}-${side}-${i}" style="text-align:center;">0</td>`).join('');
     const colspan = gamesCount + (hcpOn ? 2 : 1);
-    return `<div class="card roster-card">
-      <h3><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}</h3>
+    return `<div class="roster-card">
+      <h4 style="font-size:14px; margin-bottom:8px;"><span class="color-dot" style="background:${teamColor(teamId)}"></span>${teamName(teamId)}${hcpOn ? ` <span style="font-size:12px; color:#94A3B8; font-weight:400;">(סה"כ הנדיקפ קבוצתי: ${teamHandicapSum(teamId)})</span>` : ''}</h4>
       <div class="table-wrap"><table>
         <thead><tr><th>שחקן</th>${hcpOn ? '<th>הנד&rsquo;</th>' : ''}${header}</tr></thead>
         <tbody>${rows || `<tr><td colspan="${colspan}" style="text-align:center;color:#94A3B8;">אין שחקנים בקבוצה זו</td></tr>`}</tbody>
@@ -1668,39 +1641,41 @@ function renderResultEntryRoster() {
     </div>`;
   }
 
-  wrap.innerHTML = buildTeamCard(teamAId, 'a') + buildTeamCard(teamBId, 'b');
-  recalcResultTotals();
+  return `<div class="card" style="margin-bottom:20px;">
+    <h3 style="margin-bottom:4px;">${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}</h3>
+    <p style="font-size:12px; color:#94A3B8; margin-bottom:14px;">${s.time ? 'שעה ' + s.time + ' &middot; ' : ''}${s.lane ? 'מסלול ' + s.lane + ' &middot; ' : ''}${s.round || ''}</p>
+    ${buildTeamBlock(s.teamAId, 'a')}
+    ${buildTeamBlock(s.teamBId, 'b')}
+    <div id="match-points-${s.id}" style="font-size:13px; color:#0369A1; margin:12px 0;"></div>
+    <div style="display:flex; justify-content:flex-end;">
+      <button class="btn btn-primary" onclick="saveMatchEntry('${s.id}')">&#x1F4BE; שמור תוצאת משחק</button>
+    </div>
+  </div>`;
 }
 
-function teamHandicapSum(teamId) {
-  return DB.players.filter(p => p.teamId === teamId).reduce((s, p) => s + computeHandicap(p.id), 0);
-}
-
-function recalcResultTotals() {
-  const teamAId = document.getElementById('re-team-a').value;
-  const teamBId = document.getElementById('re-team-b').value;
-  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
-  if (!teamAId || !teamBId) return;
-  const aPlayers = DB.players.filter(p => p.teamId === teamAId);
-  const bPlayers = DB.players.filter(p => p.teamId === teamBId);
-  const aHcpSum = teamHandicapSum(teamAId);
-  const bHcpSum = teamHandicapSum(teamBId);
+function recalcMatchEntryTotals(scheduleId) {
+  const s = DB.schedule.find(x => x.id === scheduleId);
+  if (!s) return;
+  const gamesCount = DB.settings.gamesPerMatch || 3;
+  const aPlayers = DB.players.filter(p => p.teamId === s.teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === s.teamBId);
+  const aHcpSum = teamHandicapSum(s.teamAId);
+  const bHcpSum = teamHandicapSum(s.teamBId);
   const gamesData = [];
   for (let i = 0; i < gamesCount; i++) {
     let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_a_${p.id}_${i}`); aRaw += el ? (parseInt(el.value) || 0) : 0; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_b_${p.id}_${i}`); bRaw += el ? (parseInt(el.value) || 0) : 0; });
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); aRaw += el ? (parseInt(el.value) || 0) : 0; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); bRaw += el ? (parseInt(el.value) || 0) : 0; });
     const aHcp = aRaw + aHcpSum, bHcp = bRaw + bHcpSum;
-    const rawAEl = document.getElementById(`team-raw-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
-    const rawBEl = document.getElementById(`team-raw-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
-    const hcpAEl = document.getElementById(`team-hcp-a-${i}`); if (hcpAEl) hcpAEl.textContent = aHcp;
-    const hcpBEl = document.getElementById(`team-hcp-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
+    const rawAEl = document.getElementById(`mt-raw-${s.id}-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
+    const rawBEl = document.getElementById(`mt-raw-${s.id}-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
+    const hcpAEl = document.getElementById(`mt-hcp-${s.id}-a-${i}`); if (hcpAEl) hcpAEl.textContent = aHcp;
+    const hcpBEl = document.getElementById(`mt-hcp-${s.id}-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
     gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp });
   }
   const { aPoints, bPoints } = computeMatchPoints(gamesData);
-  const previewEl = document.getElementById('re-points-preview');
-  previewEl.style.display = 'block';
-  previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(teamAId)} ${aPoints} — ${bPoints} ${teamName(teamBId)}`;
+  const previewEl = document.getElementById(`match-points-${s.id}`);
+  if (previewEl) previewEl.innerHTML = `<strong>תצוגה מקדימה של נקודות ליגה:</strong> ${teamName(s.teamAId)} ${aPoints} — ${bPoints} ${teamName(s.teamBId)}`;
 }
 
 // Compares the operative (handicap-inclusive when enabled) per-game totals —
@@ -1721,28 +1696,23 @@ function computeMatchPoints(gamesData) {
   return { aPoints, bPoints };
 }
 
-function saveResultEntry() {
-  const teamAId = document.getElementById('re-team-a').value;
-  const teamBId = document.getElementById('re-team-b').value;
-  const date = document.getElementById('re-date').value;
-  const gamesCount = Math.max(1, parseInt(document.getElementById('re-games-count').value) || 3);
-  const scheduleId = document.getElementById('re-schedule-select').value;
-  if (!teamAId || !teamBId || teamAId === teamBId) { toast('נא לבחור שתי קבוצות שונות'); return; }
-  if (!date) { toast('נא לבחור תאריך'); return; }
-
-  const aPlayers = DB.players.filter(p => p.teamId === teamAId);
-  const bPlayers = DB.players.filter(p => p.teamId === teamBId);
+async function saveMatchEntry(scheduleId) {
+  const s = DB.schedule.find(x => x.id === scheduleId);
+  if (!s) return;
+  const gamesCount = DB.settings.gamesPerMatch || 3;
+  const aPlayers = DB.players.filter(p => p.teamId === s.teamAId);
+  const bPlayers = DB.players.filter(p => p.teamId === s.teamBId);
   const playerHandicaps = {};
   [...aPlayers, ...bPlayers].forEach(p => { playerHandicaps[p.id] = computeHandicap(p.id); });
-  const aHcpSum = teamHandicapSum(teamAId);
-  const bHcpSum = teamHandicapSum(teamBId);
+  const aHcpSum = teamHandicapSum(s.teamAId);
+  const bHcpSum = teamHandicapSum(s.teamBId);
 
   const games = [];
   for (let i = 0; i < gamesCount; i++) {
     const playerScores = {};
     let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_a_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; aRaw += v; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_b_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; bRaw += v; });
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; aRaw += v; });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? (parseInt(el.value) || 0) : 0; playerScores[p.id] = v; bRaw += v; });
     games.push({
       gameNum: i + 1, playerScores,
       teamARawTotal: aRaw, teamBRawTotal: bRaw,
@@ -1752,22 +1722,24 @@ function saveResultEntry() {
   const { aPoints, bPoints } = computeMatchPoints(games);
   const id = uid('res');
   const data = {
-    id, date, scheduleId: scheduleId || null, teamAId, teamBId, games,
+    id, date: s.date, scheduleId: s.id, teamAId: s.teamAId, teamBId: s.teamBId, games,
     teamAPoints: aPoints, teamBPoints: bPoints,
     handicapEnabled: !!DB.settings.handicapEnabled, playerHandicaps,
     createdAt: new Date().toISOString()
   };
   DB.results.push(data);
+  s.status = 'completed';
   dbSave();
-  fbSet('results', id, data);
 
-  if (scheduleId) {
-    const s = DB.schedule.find(x => x.id === scheduleId);
-    if (s) { s.status = 'completed'; dbSave(); fbSet('schedule', s.id, s); }
+  try {
+    await Promise.all([fbSet('results', id, data), fbSet('schedule', s.id, s)]);
+  } catch(e) {
+    toast('⚠️ נשמר מקומית אך לא בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
   }
 
-  toast('✅ התוצאה נשמרה');
-  showPage('results');
+  toast(`✅ נשמרה תוצאת ${teamName(s.teamAId)} נגד ${teamName(s.teamBId)}`);
+  renderResultEntryPage();
+  renderSchedule();
 }
 
 // ─── STANDINGS ───────────────────────────────────────────────
