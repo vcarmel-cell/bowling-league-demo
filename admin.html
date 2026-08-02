@@ -1661,6 +1661,16 @@ function clampScore(raw) {
   return Math.max(0, Math.min(300, v));
 }
 
+// Per-player high-game bonus, credited to that player's team: 0.5 pt for a
+// scratch game of 225-249, 1 pt for 250-274, 2 pts for 275-300. Based on the
+// raw (scratch) score, not the handicap-inclusive one.
+function highScoreBonus(rawScore) {
+  if (rawScore >= 275) return 2;
+  if (rawScore >= 250) return 1;
+  if (rawScore >= 225) return 0.5;
+  return 0;
+}
+
 function recalcMatchEntryTotals(scheduleId) {
   const s = DB.schedule.find(x => x.id === scheduleId);
   if (!s) return;
@@ -1671,15 +1681,15 @@ function recalcMatchEntryTotals(scheduleId) {
   const bHcpSum = teamHandicapSum(s.teamBId);
   const gamesData = [];
   for (let i = 0; i < gamesCount; i++) {
-    let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); aRaw += el ? clampScore(el.value) : 0; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); bRaw += el ? clampScore(el.value) : 0; });
+    let aRaw = 0, bRaw = 0, aBonus = 0, bBonus = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; aRaw += v; aBonus += highScoreBonus(v); });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; bRaw += v; bBonus += highScoreBonus(v); });
     const aHcp = aRaw + aHcpSum, bHcp = bRaw + bHcpSum;
     const rawAEl = document.getElementById(`mt-raw-${s.id}-a-${i}`); if (rawAEl) rawAEl.textContent = aRaw;
     const rawBEl = document.getElementById(`mt-raw-${s.id}-b-${i}`); if (rawBEl) rawBEl.textContent = bRaw;
     const hcpAEl = document.getElementById(`mt-hcp-${s.id}-a-${i}`); if (hcpAEl) hcpAEl.textContent = aHcp;
     const hcpBEl = document.getElementById(`mt-hcp-${s.id}-b-${i}`); if (hcpBEl) hcpBEl.textContent = bHcp;
-    gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp });
+    gamesData.push({ gameNum: i + 1, teamARawTotal: aRaw, teamBRawTotal: bRaw, teamAHcpTotal: aHcp, teamBHcpTotal: bHcp, teamABonus: aBonus, teamBBonus: bBonus });
   }
   const { aPoints, bPoints } = computeMatchPoints(gamesData);
   const previewEl = document.getElementById(`match-points-${s.id}`);
@@ -1687,7 +1697,8 @@ function recalcMatchEntryTotals(scheduleId) {
 }
 
 // Compares the operative (handicap-inclusive when enabled) per-game totals —
-// equal to the raw totals whenever handicap is switched off.
+// equal to the raw totals whenever handicap is switched off. Also folds in
+// each game's high-score bonus points (see highScoreBonus above).
 function computeMatchPoints(gamesData) {
   const gw = DB.settings.pointsPerGameWin ?? 1;
   const sw = DB.settings.pointsPerSeriesWin ?? 2;
@@ -1697,6 +1708,8 @@ function computeMatchPoints(gamesData) {
     else if (g.teamBHcpTotal > g.teamAHcpTotal) bPoints += gw;
     else { aPoints += gw / 2; bPoints += gw / 2; }
     aPins += g.teamAHcpTotal; bPins += g.teamBHcpTotal;
+    aPoints += g.teamABonus || 0;
+    bPoints += g.teamBBonus || 0;
   });
   if (aPins > bPins) aPoints += sw;
   else if (bPins > aPins) bPoints += sw;
@@ -1718,13 +1731,14 @@ async function saveMatchEntry(scheduleId) {
   const games = [];
   for (let i = 0; i < gamesCount; i++) {
     const playerScores = {};
-    let aRaw = 0, bRaw = 0;
-    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; aRaw += v; });
-    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; bRaw += v; });
+    let aRaw = 0, bRaw = 0, aBonus = 0, bBonus = 0;
+    aPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_a_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; aRaw += v; aBonus += highScoreBonus(v); });
+    bPlayers.forEach(p => { const el = document.getElementById(`sc_${s.id}_b_${p.id}_${i}`); const v = el ? clampScore(el.value) : 0; playerScores[p.id] = v; bRaw += v; bBonus += highScoreBonus(v); });
     games.push({
       gameNum: i + 1, playerScores,
       teamARawTotal: aRaw, teamBRawTotal: bRaw,
-      teamAHcpTotal: aRaw + aHcpSum, teamBHcpTotal: bRaw + bHcpSum
+      teamAHcpTotal: aRaw + aHcpSum, teamBHcpTotal: bRaw + bHcpSum,
+      teamABonus: aBonus, teamBBonus: bBonus
     });
   }
   const { aPoints, bPoints } = computeMatchPoints(games);
