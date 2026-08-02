@@ -275,6 +275,7 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="openPrintFormModal()">&#x1F5A8;&#xFE0F; טופס לערב משחקים</button>
           <button class="btn btn-secondary" onclick="openAutoScheduleModal()">&#x1F3B2; צור תוכנית אוטומטית</button>
+          <button class="btn btn-secondary" onclick="openPostponeModal()">&#x1F4C5; דחיית מחזורים</button>
           <button class="btn btn-primary" onclick="openScheduleModal()">+ משחק חדש</button>
         </div>
       </div>
@@ -523,6 +524,29 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('auto-schedule-modal')">ביטול</button>
       <button class="btn btn-primary" onclick="generateAutoSchedule()">&#x1F3B2; צור תוכנית</button>
+    </div>
+  </div>
+</div>
+
+<!-- POSTPONE ROUNDS MODAL -->
+<div id="postpone-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>&#x1F4C5; דחיית מחזורים</h2>
+    <p style="font-size:13px; color:#64748B; margin-bottom:16px;">דוחה בבת אחת את כל המשחקים שעדיין לא שוחקו מתאריך מסוים ואילך — שומר על המרווח בין המחזורים, ולא נוגע במשחקים שכבר הוזנה להם תוצאה.</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>לדחות החל מתאריך</label>
+        <select id="postpone-from-date" onchange="updatePostponePreview()"></select>
+      </div>
+      <div class="form-group">
+        <label>לדחות ב- (ימים)</label>
+        <input type="number" id="postpone-days" min="1" value="7" oninput="updatePostponePreview()">
+      </div>
+    </div>
+    <div id="postpone-preview" style="font-size:13px; color:#0369A1; margin-bottom:14px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('postpone-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="applyPostpone()">&#x1F4C5; דחה מחזורים</button>
     </div>
   </div>
 </div>
@@ -1509,6 +1533,54 @@ async function seedDemoData() {
       }
     },
     'צור נתוני דמו'
+  );
+}
+
+// ─── POSTPONE ROUNDS ────────────────────────────────────────
+// Shifts every not-yet-completed game from a chosen date onward by the same
+// number of days — e.g. a holiday pushes that round and everything after it
+// back a full week, instead of editing each game one at a time.
+function openPostponeModal() {
+  const pendingDates = [...new Set(DB.schedule.filter(s => s.status !== 'completed').map(s => s.date))].sort();
+  if (!pendingDates.length) { toast('אין משחקים ממתינים לדחייה'); return; }
+  document.getElementById('postpone-from-date').innerHTML = pendingDates.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
+  document.getElementById('postpone-days').value = 7;
+  updatePostponePreview();
+  openModalEl('postpone-modal');
+}
+
+function updatePostponePreview() {
+  const fromDate = document.getElementById('postpone-from-date').value;
+  const days = parseInt(document.getElementById('postpone-days').value) || 0;
+  const affected = DB.schedule.filter(s => s.status !== 'completed' && s.date >= fromDate);
+  document.getElementById('postpone-preview').textContent = affected.length && days
+    ? `${affected.length} משחקים מ-${fmtDate(fromDate)} ואילך יעברו ל-${days} ימים קדימה.`
+    : `${affected.length} משחקים מ-${fmtDate(fromDate)} ואילך.`;
+}
+
+async function applyPostpone() {
+  const fromDate = document.getElementById('postpone-from-date').value;
+  const days = parseInt(document.getElementById('postpone-days').value) || 0;
+  if (!days) { toast('נא להזין מספר ימים לדחייה'); return; }
+  const affected = DB.schedule.filter(s => s.status !== 'completed' && s.date >= fromDate);
+  if (!affected.length) { toast('אין משחקים לדחייה'); return; }
+
+  confirmAction(
+    'דחיית מחזורים',
+    `${affected.length} משחקים מ-${fmtDate(fromDate)} ואילך יידחו ב-${days} ימים. להמשיך?`,
+    async () => {
+      affected.forEach(s => { s.date = addDays(s.date, days); });
+      dbSave();
+      renderSchedule();
+      closeModal('postpone-modal');
+      try {
+        await Promise.all(affected.map(s => fbSet('schedule', s.id, s)));
+        toast(`✅ ${affected.length} משחקים נדחו`);
+      } catch(e) {
+        toast('⚠️ חלק מהעדכונים לא נשמרו בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+      }
+    },
+    'דחה מחזורים'
   );
 }
 
