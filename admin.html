@@ -469,9 +469,9 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
     <div class="form-group">
       <label>מגדר</label>
       <select id="player-gender">
-        <option value="">לא צוין</option>
         <option value="גבר">גבר</option>
         <option value="אישה">אישה</option>
+        <option value="">לא צוין</option>
       </select>
     </div>
     <div class="form-group">
@@ -1164,7 +1164,7 @@ function renderPlayers() {
   }).join('');
   const newRow = `<tr style="background:#F8FCFF;">
     <td><input type="text" id="new-player-name" placeholder="שם שחקן חדש" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
-    <td><select id="new-player-gender"><option value="">מגדר</option><option value="גבר">גבר</option><option value="אישה">אישה</option></select></td>
+    <td><select id="new-player-gender"><option value="גבר">גבר</option><option value="אישה">אישה</option><option value="">לא צוין</option></select></td>
     <td><select id="new-player-team"><option value="">ללא קבוצה</option>${teamOpts}</select></td>
     <td style="color:#94A3B8;">—</td>
     <td><input type="number" id="new-player-handicap" placeholder="אוטומטי" min="0" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
@@ -1210,7 +1210,7 @@ function openPlayerModal(id) {
   } else {
     document.getElementById('player-name').value = '';
     document.getElementById('player-team').value = '';
-    document.getElementById('player-gender').value = '';
+    document.getElementById('player-gender').value = 'גבר';
     document.getElementById('player-manual-handicap').value = '';
   }
   openModalEl('player-modal');
