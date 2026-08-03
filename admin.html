@@ -1169,7 +1169,10 @@ function renderPlayers() {
     return `<tr>
       <td>${p.name}</td>
       <td>${genderBadge(p.gender)}</td>
-      <td>${p.teamId ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}` : '<span class="badge badge-gray">ללא קבוצה</span>'}</td>
+      <td id="team-cell-${p.id}">${p.teamId
+        ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}`
+        : `<span style="cursor:pointer;" onclick="startQuickTeamAssign('${p.id}')" title="לחץ כדי לשייך לקבוצה"><span class="color-dot" style="background:#94A3B8;"></span>ללא קבוצה</span>`
+      }</td>
       <td>${st.games ? st.avg.toFixed(1) : '—'}</td>
       <td>${DB.settings.handicapEnabled ? computeHandicap(p.id) + (!st.games && p.manualHandicap != null ? ' <span style="color:#94A3B8; font-size:12px;">(ידני)</span>' : '') : '—'}</td>
       <td style="white-space:nowrap;">
@@ -1194,6 +1197,37 @@ function renderPlayers() {
   </tr>`;
 
   document.getElementById('players-tbody').innerHTML = rows + newRow;
+}
+
+// Clicking the gray "ללא קבוצה" dot swaps that cell for a one-off <select>
+// listing only teams with room (< MAX_PLAYERS_PER_TEAM) — quicker than
+// opening the full edit modal just to set a team.
+function startQuickTeamAssign(playerId) {
+  const cell = document.getElementById(`team-cell-${playerId}`);
+  if (!cell) return;
+  const availableTeams = DB.teams.filter(t => teamPlayerCount(t.id) < MAX_PLAYERS_PER_TEAM);
+  if (!availableTeams.length) { toast('אין קבוצות עם מקום פנוי'); return; }
+  const opts = availableTeams.map(t => `<option value="${t.id}">${t.name} (${teamPlayerCount(t.id)}/${MAX_PLAYERS_PER_TEAM})</option>`).join('');
+  cell.innerHTML = `<select onchange="quickAssignTeam('${playerId}', this.value)" style="max-width:160px;">
+      <option value="">בחר קבוצה...</option>${opts}
+    </select>
+    <button type="button" onclick="renderPlayers()" title="ביטול" style="border:none;background:none;cursor:pointer;font-size:12px;color:#94A3B8;vertical-align:middle;">&#x2715;</button>`;
+}
+
+async function quickAssignTeam(playerId, teamId) {
+  if (!teamId) return;
+  const p = DB.players.find(x => x.id === playerId);
+  if (!p) return;
+  p.teamId = teamId;
+  dbSave();
+  renderPlayers();
+  populateTeamSelects();
+  try {
+    await fbSet('players', p.id, p);
+    toast('✅ השחקן שויך לקבוצה');
+  } catch(e) {
+    toast('⚠️ נשמר מקומית אך לא בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+  }
 }
 
 function saveInlinePlayer() {
