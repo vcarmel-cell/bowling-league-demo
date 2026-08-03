@@ -1089,14 +1089,20 @@ function saveTeam() {
 }
 
 function deleteTeam(id) {
-  confirmAction('מחיקת קבוצה', 'למחוק את הקבוצה? שחקנים משויכים יהפכו ל"ללא קבוצה".', () => {
+  confirmAction('מחיקת קבוצה', 'למחוק את הקבוצה? שחקנים משויכים יהפכו ל"ללא קבוצה".', async () => {
     DB.teams = DB.teams.filter(t => t.id !== id);
-    DB.players.forEach(p => { if (p.teamId === id) { p.teamId = ''; fbSet('players', p.id, p); } });
+    const affectedPlayers = DB.players.filter(p => p.teamId === id);
+    affectedPlayers.forEach(p => { p.teamId = ''; });
     dbSave();
-    fbDel('teams', id);
     renderTeams();
+    renderPlayers();
     populateTeamSelects();
-    toast('🗑️ הקבוצה נמחקה');
+    try {
+      await Promise.all([fbDel('teams', id), ...affectedPlayers.map(p => fbSet('players', p.id, p))]);
+      toast('🗑️ הקבוצה נמחקה');
+    } catch(e) {
+      toast('⚠️ נמחק מקומית אך לא הושלם בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+    }
   });
 }
 
@@ -1166,10 +1172,14 @@ function renderPlayers() {
   const genderBadge = g => g ? `<span class="badge badge-gray">${g}</span>` : '—';
   const rows = list.map(p => {
     const st = playerStatsFor(p.id);
+    // A teamId can point at a team that no longer exists (e.g. a delete
+    // whose player-cleanup write failed silently) — treat that the same as
+    // "no team" rather than rendering a broken "—" fallback.
+    const hasTeam = p.teamId && DB.teams.some(t => t.id === p.teamId);
     return `<tr>
       <td>${p.name}</td>
       <td>${genderBadge(p.gender)}</td>
-      <td id="team-cell-${p.id}">${p.teamId
+      <td id="team-cell-${p.id}">${hasTeam
         ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}`
         : `<span style="cursor:pointer;" onclick="startQuickTeamAssign('${p.id}')" title="לחץ כדי לשייך לקבוצה"><span class="color-dot" style="background:#94A3B8;"></span>ללא קבוצה</span>`
       }</td>
@@ -1230,7 +1240,7 @@ async function quickAssignTeam(playerId, teamId) {
   }
 }
 
-function saveInlinePlayer() {
+async function saveInlinePlayer() {
   const nameEl = document.getElementById('new-player-name');
   const name = nameEl.value.trim();
   const gender = document.getElementById('new-player-gender').value;
@@ -1246,11 +1256,15 @@ function saveInlinePlayer() {
   const data = { id, name, teamId, gender, manualHandicap, createdAt: new Date().toISOString() };
   DB.players.push(data);
   dbSave();
-  fbSet('players', id, data);
   renderPlayers();
   renderTeams();
-  toast('✅ השחקן נוסף');
   setTimeout(() => { const el = document.getElementById('new-player-name'); if (el) el.focus(); }, 50);
+  try {
+    await fbSet('players', id, data);
+    toast('✅ השחקן נוסף');
+  } catch(e) {
+    toast('⚠️ נשמר מקומית אך לא בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+  }
 }
 
 function openPlayerModal(id) {
@@ -1260,7 +1274,7 @@ function openPlayerModal(id) {
   if (id) {
     const p = DB.players.find(x => x.id === id);
     document.getElementById('player-name').value = p.name;
-    document.getElementById('player-team').value = p.teamId || '';
+    document.getElementById('player-team').value = (p.teamId && DB.teams.some(t => t.id === p.teamId)) ? p.teamId : '';
     document.getElementById('player-gender').value = p.gender || '';
     document.getElementById('player-manual-handicap').value = p.manualHandicap ?? '';
   } else {
@@ -1272,7 +1286,7 @@ function openPlayerModal(id) {
   openModalEl('player-modal');
 }
 
-function savePlayer() {
+async function savePlayer() {
   const id = document.getElementById('player-id').value || uid('plyr');
   const name = document.getElementById('player-name').value.trim();
   const teamId = document.getElementById('player-team').value;
@@ -1288,11 +1302,15 @@ function savePlayer() {
   const data = { id, name, teamId, gender, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
   if (existing) Object.assign(existing, data); else DB.players.push(data);
   dbSave();
-  fbSet('players', id, data);
   closeModal('player-modal');
   renderPlayers();
   renderTeams();
-  toast('✅ השחקן נשמר');
+  try {
+    await fbSet('players', id, data);
+    toast('✅ השחקן נשמר');
+  } catch(e) {
+    toast('⚠️ נשמר מקומית אך לא בענן — לך להגדרות ולחץ "העלה נתונים מקומיים לענן"');
+  }
 }
 
 function deletePlayer(id) {
