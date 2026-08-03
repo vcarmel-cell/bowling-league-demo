@@ -497,6 +497,11 @@ input[type="number"].score-input { text-align: center; padding: 8px 4px; font-we
       </select>
     </div>
     <div class="form-group">
+      <label>ממוצע ידני</label>
+      <input type="number" id="player-manual-avg" placeholder="לא נקבע" min="0" max="300">
+      <p style="font-size:12px; color:#94A3B8; margin-top:5px;">בשימוש רק כל עוד לשחקן אין היסטוריית משחקים במערכת — למשל כדי שאם הוא נעדר מהמשחק הראשון שלו, הקבוצה לא תקבל 0 עבורו. לאחר המשחק הראשון שלו הממוצע עובר לחישוב אוטומטי.</p>
+    </div>
+    <div class="form-group">
       <label>הנדיקפ ידני</label>
       <input type="number" id="player-manual-handicap" placeholder="אוטומטי לפי ממוצע" min="0">
       <p style="font-size:12px; color:#94A3B8; margin-top:5px;">בשימוש רק כל עוד לשחקן אין היסטוריית משחקים במערכת — לאחר המשחק הראשון שלו ההנדיקפ עובר לחישוב אוטומטי לפי הממוצע.</p>
@@ -1147,6 +1152,19 @@ function playerStatsFor(playerId) {
   return { games, avg: games ? total / games : 0, high };
 }
 
+// Value used to auto-fill an absent player's games: their real average
+// minus the 10-pin absence penalty once they have game history; before
+// that, their manually-set starting average (minus the same penalty) if one
+// was given, so a new player's very first absence doesn't hand their team a
+// flat 0 for that line. Falls back to 0 only if neither exists.
+function absenceFillScore(playerId) {
+  const st = playerStatsFor(playerId);
+  if (st.games) return Math.max(0, Math.round(st.avg) - 10);
+  const p = DB.players.find(x => x.id === playerId);
+  if (p && p.manualAverage != null) return Math.max(0, p.manualAverage - 10);
+  return 0;
+}
+
 // Handicap is based on a player's scratch average entering the match — it
 // only affects team-match scoring/standings, never the personal scratch table.
 // Players with no game history yet use their manually-set handicap (if any)
@@ -1183,7 +1201,7 @@ function renderPlayers() {
         ? `<span class="color-dot" style="background:${teamColor(p.teamId)}"></span>${teamName(p.teamId)}`
         : `<span style="cursor:pointer;" onclick="startQuickTeamAssign('${p.id}')" title="לחץ כדי לשייך לקבוצה"><span class="color-dot" style="background:#94A3B8;"></span>ללא קבוצה</span>`
       }</td>
-      <td>${st.games ? st.avg.toFixed(1) : '—'}</td>
+      <td>${st.games ? st.avg.toFixed(1) : (p.manualAverage != null ? p.manualAverage + ' <span style="color:#94A3B8; font-size:12px;">(ידני)</span>' : '—')}</td>
       <td>${DB.settings.handicapEnabled ? computeHandicap(p.id) + (!st.games && p.manualHandicap != null ? ' <span style="color:#94A3B8; font-size:12px;">(ידני)</span>' : '') : '—'}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-secondary btn-sm" onclick="openPlayerModal('${p.id}')">ערוך</button>
@@ -1201,7 +1219,7 @@ function renderPlayers() {
     <td><input type="text" id="new-player-name" placeholder="שם שחקן חדש" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
     <td><select id="new-player-gender"><option value="גבר">גבר</option><option value="אישה">אישה</option><option value="">לא צוין</option></select></td>
     <td><select id="new-player-team"><option value="">ללא קבוצה</option>${teamOpts}</select></td>
-    <td style="color:#94A3B8;">—</td>
+    <td><input type="number" id="new-player-avg" placeholder="ידני (לא חובה)" min="0" max="300" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
     <td><input type="number" id="new-player-handicap" placeholder="אוטומטי" min="0" onkeydown="if(event.key==='Enter') saveInlinePlayer()"></td>
     <td><button class="btn btn-primary btn-sm" onclick="saveInlinePlayer()">&#x1F4BE; שמירה</button></td>
   </tr>`;
@@ -1245,6 +1263,8 @@ async function saveInlinePlayer() {
   const name = nameEl.value.trim();
   const gender = document.getElementById('new-player-gender').value;
   const teamId = document.getElementById('new-player-team').value;
+  const manualAvgRaw = document.getElementById('new-player-avg').value.trim();
+  const manualAverage = manualAvgRaw === '' ? null : Math.max(0, Math.min(300, parseInt(manualAvgRaw) || 0));
   const manualHandicapRaw = document.getElementById('new-player-handicap').value.trim();
   const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
   if (!name) { toast('נא להזין שם שחקן'); nameEl.focus(); return; }
@@ -1253,7 +1273,7 @@ async function saveInlinePlayer() {
     return;
   }
   const id = uid('plyr');
-  const data = { id, name, teamId, gender, manualHandicap, createdAt: new Date().toISOString() };
+  const data = { id, name, teamId, gender, manualAverage, manualHandicap, createdAt: new Date().toISOString() };
   DB.players.push(data);
   dbSave();
   renderPlayers();
@@ -1276,11 +1296,13 @@ function openPlayerModal(id) {
     document.getElementById('player-name').value = p.name;
     document.getElementById('player-team').value = (p.teamId && DB.teams.some(t => t.id === p.teamId)) ? p.teamId : '';
     document.getElementById('player-gender').value = p.gender || '';
+    document.getElementById('player-manual-avg').value = p.manualAverage ?? '';
     document.getElementById('player-manual-handicap').value = p.manualHandicap ?? '';
   } else {
     document.getElementById('player-name').value = '';
     document.getElementById('player-team').value = '';
     document.getElementById('player-gender').value = 'גבר';
+    document.getElementById('player-manual-avg').value = '';
     document.getElementById('player-manual-handicap').value = '';
   }
   openModalEl('player-modal');
@@ -1291,6 +1313,8 @@ async function savePlayer() {
   const name = document.getElementById('player-name').value.trim();
   const teamId = document.getElementById('player-team').value;
   const gender = document.getElementById('player-gender').value;
+  const manualAvgRaw = document.getElementById('player-manual-avg').value.trim();
+  const manualAverage = manualAvgRaw === '' ? null : Math.max(0, Math.min(300, parseInt(manualAvgRaw) || 0));
   const manualHandicapRaw = document.getElementById('player-manual-handicap').value.trim();
   const manualHandicap = manualHandicapRaw === '' ? null : Math.max(0, parseInt(manualHandicapRaw) || 0);
   if (!name) { toast('נא להזין שם שחקן'); return; }
@@ -1299,7 +1323,7 @@ async function savePlayer() {
     return;
   }
   const existing = DB.players.find(p => p.id === id);
-  const data = { id, name, teamId, gender, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
+  const data = { id, name, teamId, gender, manualAverage, manualHandicap, createdAt: existing ? existing.createdAt : new Date().toISOString() };
   if (existing) Object.assign(existing, data); else DB.players.push(data);
   dbSave();
   closeModal('player-modal');
@@ -2027,8 +2051,7 @@ function markEditPlayerAbsent(side, playerId, checked) {
   const r = DB.results.find(x => x.id === document.getElementById('edit-result-id').value);
   if (!r) return;
   const gamesCount = (r.games || []).length;
-  const st = playerStatsFor(playerId);
-  const avg = st.games ? Math.max(0, Math.round(st.avg) - 10) : 0;
+  const avg = absenceFillScore(playerId);
   for (let i = 0; i < gamesCount; i++) {
     const el = document.getElementById(`edit_${side}_${playerId}_${i}`);
     if (!el) continue;
@@ -2308,8 +2331,7 @@ function highScoreBonus(rawScore) {
 // by mistake — unchecking restores manual entry.
 function markPlayerAbsent(scheduleId, side, playerId, checked) {
   const gamesCount = DB.settings.gamesPerMatch || 3;
-  const st = playerStatsFor(playerId);
-  const avg = st.games ? Math.max(0, Math.round(st.avg) - 10) : 0;
+  const avg = absenceFillScore(playerId);
   for (let i = 0; i < gamesCount; i++) {
     const el = document.getElementById(`sc_${scheduleId}_${side}_${playerId}_${i}`);
     if (!el) continue;
