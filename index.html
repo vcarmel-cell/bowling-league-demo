@@ -6,14 +6,15 @@
 <title>ליגת באולינג — DEMO</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Arial, sans-serif; background: #EFF9FF; color: #0C4A6E; direction: rtl; min-height: 100vh; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #EFF9FF; color: #0C4A6E; min-height: 100vh; }
 
 header {
+  position: relative;
   background: linear-gradient(135deg, #0369A1 0%, #083D5C 100%);
   color: #fff; padding: 22px 20px;
   box-shadow: 0 4px 20px rgba(8,61,92,0.2);
 }
-.header-inner { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; text-align: right; }
+.header-inner { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; text-align: start; }
 header .brand {
   font-size: 88px; width: 128px; height: 128px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -21,6 +22,16 @@ header .brand {
 header .brand img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 header h1 { font-size: 24px; font-weight: 800; }
 header p { font-size: 13px; color: #7DD3FC; margin-top: 4px; }
+
+.lang-switch {
+  position: absolute; top: 16px; inset-inline-end: 16px;
+  display: flex; gap: 4px; background: rgba(255,255,255,0.14); border-radius: 8px; padding: 3px;
+}
+.lang-switch button {
+  border: none; background: transparent; color: #BAE6FD; font-size: 12px; font-weight: 700;
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
+}
+.lang-switch button.active { background: #fff; color: #0369A1; }
 
 .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
 
@@ -45,13 +56,13 @@ header p { font-size: 13px; color: #7DD3FC; margin-top: 4px; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th {
-  background: #F0F9FF; text-align: right; padding: 10px 12px; font-size: 13px;
+  background: #F0F9FF; text-align: start; padding: 10px 12px; font-size: 13px;
   font-weight: 700; color: #0369A1; border-bottom: 2px solid #BAE6FD; white-space: nowrap;
 }
 td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #E0F2FE; color: #0C4A6E; white-space: nowrap; }
 tr:last-child td { border-bottom: none; }
 
-.color-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-left:8px; vertical-align:middle; }
+.color-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-inline-end:8px; vertical-align:middle; }
 .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #E0F2FE; color: #0369A1; }
 .rank-1 td:first-child { color: #D97706; font-weight: 900; }
 .rank-2 td:first-child { color: #64748B; font-weight: 900; }
@@ -70,28 +81,33 @@ footer { text-align: center; padding: 20px; color: #7DD3FC; font-size: 12px; }
 @media (max-width: 600px) {
   header h1 { font-size: 20px; }
   .tab { flex: 1; text-align: center; padding: 10px 8px; font-size: 13px; }
+  .lang-switch { position: static; justify-content: center; margin-bottom: 12px; }
 }
 </style>
 </head>
 <body>
 
 <header>
+  <div class="lang-switch">
+    <button type="button" data-lang="he" onclick="setLang('he')">עברית</button>
+    <button type="button" data-lang="en" onclick="setLang('en')">English</button>
+  </div>
   <div class="header-inner">
     <div class="brand" id="league-logo">&#x1F3B3;</div>
     <div>
       <h1 id="league-name">ליגת באולינג (DEMO)</h1>
-      <p>טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת</p>
+      <p id="tagline">טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת</p>
     </div>
   </div>
 </header>
 
 <div class="wrap">
   <div id="content">
-    <div class="loading">&#x23F3; טוען נתונים...</div>
+    <div class="loading" id="loading-msg">&#x23F3; טוען נתונים...</div>
   </div>
 </div>
 
-<footer>ליגת באולינג &copy; <span id="footer-year"></span> · תצוגה ציבורית לצפייה בלבד</footer>
+<footer id="footer-text">ליגת באולינג &copy; <span id="footer-year"></span> · תצוגה ציבורית לצפייה בלבד</footer>
 
 <script>
 // ─── CONFIGURE YOUR FIREBASE PROJECT HERE ───────────────────────
@@ -108,11 +124,168 @@ const FIREBASE_CONFIG = {
   appId: "1:128811185669:web:a0c3c9c27d7905efc9ce6c"
 };
 
+// ─── i18n ────────────────────────────────────────────────────
+// Demo-only bilingual support: UI chrome (labels, headers, messages) is
+// translated; user-entered data (team/player/league names) is shown as
+// typed, in whichever language the admin entered it. Switching language
+// also flips the whole page between RTL and LTR — see setLang().
+const T = {
+  he: {
+    pageTitle: 'ליגת באולינג — DEMO',
+    tagline: 'טבלת דירוג, לוח משחקים ותוצאות — עדכני בזמן אמת',
+    loading: '⏳ טוען נתונים...',
+    footer: 'ליגת באולינג © {year} · תצוגה ציבורית לצפייה בלבד',
+    tabStandings: '🏆 דירוג',
+    tabSchedule: '📅 משחקים קרובים',
+    tabResults: '🎯 תוצאות אחרונות',
+    teamStandingsTitle: 'דירוג קבוצתי',
+    colRank: '#',
+    colTeam: 'קבוצה',
+    colPlayed: 'שיחקו',
+    colLeaguePts: 'נק\' ליגה',
+    colTotalPins: 'סה"כ פינים',
+    noDataYet: 'אין נתונים עדיין',
+    playerStandingsTitle: 'דירוג אישי',
+    colPlayer: 'שחקן',
+    colGames: 'משחקים',
+    colAvg: 'ממוצע',
+    colHighScore: 'ציון גבוה',
+    roundAllStarsTitle: '⭐ נבחרת המחזור',
+    colSeriesScore: 'ניקוד סדרה',
+    lastRoundGamesTitle: '📋 כל המשחקים מהמחזור האחרון',
+    colTeamA: 'קבוצה א׳',
+    colTeamB: 'קבוצה ב׳',
+    colPins: 'פינים',
+    colPoints: 'נקודות',
+    singleGameHighTitle: '🎯 שיא אישי למשחק בודד',
+    colScore: 'ציון',
+    colDate: 'תאריך',
+    seriesHighTitle: '🏆 שיא אישי לסדרה',
+    gamesCountSuffix: '({n} משחקים)',
+    teamSeriesHighTitle: '🏅 שיא קבוצתי לסדרה',
+    singleGameHighWomenTitle: '🎯 שיא אישי למשחק בודד — נשים',
+    seriesHighWomenTitle: '🏆 שיא אישי לסדרה — נשים',
+    colPlayerF: 'שחקנית',
+    upcomingGamesTitle: 'משחקים קרובים',
+    colTime: 'שעה',
+    colLane: 'מסלול',
+    colRound: 'מחזור',
+    noGamesScheduled: 'אין משחקים מתוכננים',
+    selectRound: 'בחר מחזור:',
+    noResultsYet: 'אין תוצאות עדיין',
+    gameHeader: 'משחק {n}',
+    colTotal: 'סה"כ',
+    noPlayers: 'אין שחקנים',
+    resultVs: '{a} נגד {b} — {date}',
+    pinsLabel: 'פינים',
+    leaguePointsLabel: 'נקודות ליגה',
+    notConfigured: '⚠️ העמוד עדיין לא מחובר לנתוני הליגה.<br><br>יש להשלים את אובייקט <code>FIREBASE_CONFIG</code> בקובץ <code>index.html</code> עם אותם הפרטים שהוזנו בעמוד הניהול (admin.html).',
+    sdkLoadFail: '⚠️ לא ניתן היה לטעון את נתוני הליגה — בדוק חיבור לאינטרנט ונסה לרענן.',
+    loadError: '⚠️ שגיאה בטעינת נתוני הליגה. נסה לרענן את הדף מאוחר יותר.'
+  },
+  en: {
+    pageTitle: 'Bowling League — DEMO',
+    tagline: 'Live standings, schedule and results',
+    loading: '⏳ Loading data...',
+    footer: 'Bowling League © {year} · Public read-only view',
+    tabStandings: '🏆 Standings',
+    tabSchedule: '📅 Upcoming Games',
+    tabResults: '🎯 Recent Results',
+    teamStandingsTitle: 'Team Standings',
+    colRank: '#',
+    colTeam: 'Team',
+    colPlayed: 'Played',
+    colLeaguePts: 'League Pts',
+    colTotalPins: 'Total Pins',
+    noDataYet: 'No data yet',
+    playerStandingsTitle: 'Player Standings',
+    colPlayer: 'Player',
+    colGames: 'Games',
+    colAvg: 'Average',
+    colHighScore: 'High Score',
+    roundAllStarsTitle: '⭐ Round All-Stars',
+    colSeriesScore: 'Series Score',
+    lastRoundGamesTitle: '📋 All Games — Last Round',
+    colTeamA: 'Team A',
+    colTeamB: 'Team B',
+    colPins: 'Pins',
+    colPoints: 'Points',
+    singleGameHighTitle: '🎯 Personal High — Single Game',
+    colScore: 'Score',
+    colDate: 'Date',
+    seriesHighTitle: '🏆 Personal High — Series',
+    gamesCountSuffix: '({n} games)',
+    teamSeriesHighTitle: '🏅 Team High — Series',
+    singleGameHighWomenTitle: '🎯 Personal High — Single Game (Women)',
+    seriesHighWomenTitle: '🏆 Personal High — Series (Women)',
+    colPlayerF: 'Player',
+    upcomingGamesTitle: 'Upcoming Games',
+    colTime: 'Time',
+    colLane: 'Lane',
+    colRound: 'Round',
+    noGamesScheduled: 'No games scheduled',
+    selectRound: 'Select round:',
+    noResultsYet: 'No results yet',
+    gameHeader: 'Game {n}',
+    colTotal: 'Total',
+    noPlayers: 'No players',
+    resultVs: '{a} vs {b} — {date}',
+    pinsLabel: 'Pins',
+    leaguePointsLabel: 'League Points',
+    notConfigured: '⚠️ This page isn\'t connected to league data yet.<br><br>Complete the <code>FIREBASE_CONFIG</code> object in <code>index.html</code> with the same details entered in the admin page (admin.html).',
+    sdkLoadFail: '⚠️ Could not load league data — check your internet connection and try refreshing.',
+    loadError: '⚠️ Error loading league data. Try refreshing the page later.'
+  }
+};
+
+let LANG = localStorage.getItem('bowling_demo_lang') || 'he';
+let LAST_DB = null;
+let LEAGUE_SETTINGS = null;
+
+function t(key) {
+  return (T[LANG] && T[LANG][key]) ?? T.he[key] ?? key;
+}
+function tf(key, vars) {
+  let s = t(key);
+  Object.entries(vars || {}).forEach(([k, v]) => { s = s.split('{' + k + '}').join(v); });
+  return s;
+}
+
+function renderHeaderTexts() {
+  document.getElementById('tagline').textContent = t('tagline');
+  document.getElementById('footer-text').innerHTML = tf('footer', { year: '<span id="footer-year">' + new Date().getFullYear() + '</span>' });
+  const loadingEl = document.getElementById('loading-msg');
+  if (loadingEl) loadingEl.textContent = t('loading');
+  const nameEl = document.getElementById('league-name');
+  if (LEAGUE_SETTINGS && LEAGUE_SETTINGS.leagueName) {
+    nameEl.textContent = LEAGUE_SETTINGS.leagueName + ' (DEMO)';
+    document.title = LEAGUE_SETTINGS.leagueName + ' — DEMO';
+  } else {
+    nameEl.textContent = t('pageTitle');
+    document.title = t('pageTitle');
+  }
+}
+
+function setLang(lang) {
+  if (lang === LANG) return;
+  LANG = lang;
+  localStorage.setItem('bowling_demo_lang', lang);
+  document.documentElement.lang = lang === 'en' ? 'en' : 'he';
+  document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
+  document.querySelectorAll('.lang-switch button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  renderHeaderTexts();
+  if (LAST_DB) {
+    const activeTab = (document.querySelector('.tab.active') || {}).dataset ? document.querySelector('.tab.active').dataset.tab : 'standings';
+    renderContent(LAST_DB);
+    switchTab(activeTab || 'standings');
+  }
+}
+
 function fmtDate(d) {
   if (!d) return '—';
   const dt = new Date(d + 'T00:00:00');
   if (isNaN(dt)) return d;
-  return dt.toLocaleDateString('he-IL');
+  return dt.toLocaleDateString(LANG === 'en' ? 'en-US' : 'he-IL');
 }
 
 function loadFirebaseSDK() {
@@ -147,11 +320,6 @@ function gameTotal(g, side) {
 // the higher series total, plus the same high-score bonus. Mirrors the
 // admin app's computeRoundRobinTeamPoints().
 function computeRoundRobinTeamPoints(DB) {
-  // Same per-win point values as the standard method (Settings → כללי
-  // ניקוד), just applied against every other team in the round instead of
-  // one scheduled opponent — so beating all N-1 other teams in a game earns
-  // (N-1) × pointsPerGameWin, and likewise for the series with its own
-  // (usually higher) weight.
   const gw = DB.settings.pointsPerGameWin ?? 1;
   const sw = DB.settings.pointsPerSeriesWin ?? 2;
   const byDate = {};
@@ -193,11 +361,12 @@ function computeRoundRobinTeamPoints(DB) {
 }
 
 // Set inside renderContent() each render — lets the round <select> in the
-// "תוצאות אחרונות" tab re-render just its cards on change, without a full
-// page re-render or a module-level copy of DB.
+// results tab re-render just its cards on change, without a full page
+// re-render or a module-level copy of DB.
 let renderResultsForDate = null;
 
 function renderContent(DB) {
+  LAST_DB = DB;
   const el = document.getElementById('content');
 
   // Team standings
@@ -293,8 +462,8 @@ function renderContent(DB) {
 
   const upcoming = DB.schedule.filter(s => s.status !== 'completed').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // Round selector for the "תוצאות אחרונות" tab — defaults to the latest
-  // played round, but any round with saved results can be picked.
+  // Round selector for the results tab — defaults to the latest played
+  // round, but any round with saved results can be picked.
   const resultRoundDates = [...new Set(DB.results.map(r => r.date))].sort().reverse();
 
   function buildResultCardsHtml(dateStr) {
@@ -305,45 +474,45 @@ function renderContent(DB) {
       const aPlayers = DB.players.filter(p => p.teamId === r.teamAId);
       const bPlayers = DB.players.filter(p => p.teamId === r.teamBId);
       const gamesCount = (r.games || []).length;
-      const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>משחק ${i + 1}</th>`).join('');
+      const gamesHeader = Array.from({ length: gamesCount }, (_, i) => `<th>${tf('gameHeader', { n: i + 1 })}</th>`).join('');
       function playerRows(players) {
         return players.map(p => {
           const cells = (r.games || []).map(g => `<td style="text-align:center;">${g.playerScores && g.playerScores[p.id] != null ? g.playerScores[p.id] : '—'}</td>`).join('');
           const total = (r.games || []).reduce((s, g) => s + ((g.playerScores && g.playerScores[p.id]) || 0), 0);
           return `<tr><td>${p.name}</td>${cells}<td style="font-weight:800;">${total}</td></tr>`;
-        }).join('') || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">אין שחקנים</td></tr>`;
+        }).join('') || `<tr><td colspan="${gamesCount + 2}" style="text-align:center;color:#94A3B8;">${t('noPlayers')}</td></tr>`;
       }
       return `
         <div class="card">
-          <h2>${teamName(r.teamAId)} נגד ${teamName(r.teamBId)} — ${fmtDate(r.date)}</h2>
-          <p style="font-size:13px; color:#0369A1; margin-bottom:14px;">פינים: <strong>${aPins} : ${bPins}</strong> &nbsp;·&nbsp; נקודות ליגה: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong></p>
+          <h2>${tf('resultVs', { a: teamName(r.teamAId), b: teamName(r.teamBId), date: fmtDate(r.date) })}</h2>
+          <p style="font-size:13px; color:#0369A1; margin-bottom:14px;">${t('pinsLabel')}: <strong>${aPins} : ${bPins}</strong> &nbsp;·&nbsp; ${t('leaguePointsLabel')}: <strong>${r.teamAPoints} : ${r.teamBPoints}</strong></p>
           <h3 style="font-size:14px; margin-bottom:8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamAId)}"></span>${teamName(r.teamAId)}</h3>
           <div class="table-wrap"><table>
-            <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+            <thead><tr><th>${t('colPlayer')}</th>${gamesHeader}<th>${t('colTotal')}</th></tr></thead>
             <tbody>${playerRows(aPlayers)}</tbody>
           </table></div>
           <h3 style="font-size:14px; margin:16px 0 8px; color:#0C4A6E;"><span class="color-dot" style="background:${teamColor(r.teamBId)}"></span>${teamName(r.teamBId)}</h3>
           <div class="table-wrap"><table>
-            <thead><tr><th>שחקן</th>${gamesHeader}<th>סה"כ</th></tr></thead>
+            <thead><tr><th>${t('colPlayer')}</th>${gamesHeader}<th>${t('colTotal')}</th></tr></thead>
             <tbody>${playerRows(bPlayers)}</tbody>
           </table></div>
         </div>`;
-    }).join('') : `<div class="card"><p style="text-align:center;color:#94A3B8;">אין תוצאות עדיין</p></div>`;
+    }).join('') : `<div class="card"><p style="text-align:center;color:#94A3B8;">${t('noResultsYet')}</p></div>`;
   }
   renderResultsForDate = buildResultCardsHtml;
 
   el.innerHTML = `
     <div class="tabs">
-      <div class="tab active" data-tab="standings" onclick="switchTab('standings')">&#x1F3C6; דירוג</div>
-      <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">&#x1F4C5; משחקים קרובים</div>
-      <div class="tab" data-tab="results" onclick="switchTab('results')">&#x1F3AF; תוצאות אחרונות</div>
+      <div class="tab active" data-tab="standings" onclick="switchTab('standings')">${t('tabStandings')}</div>
+      <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">${t('tabSchedule')}</div>
+      <div class="tab" data-tab="results" onclick="switchTab('results')">${t('tabResults')}</div>
     </div>
 
     <div class="section active" id="section-standings">
       <div class="card">
-        <h2>דירוג קבוצתי</h2>
+        <h2>${t('teamStandingsTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>קבוצה</th><th>שיחקו</th><th>נק׳ ליגה</th><th>סה"כ פינים</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colTeam')}</th><th>${t('colPlayed')}</th><th>${t('colLeaguePts')}</th><th>${t('colTotalPins')}</th></tr></thead>
           <tbody>
             ${teamStandings.length ? teamStandings.map((s, i) => `
               <tr class="${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : ''}">
@@ -352,14 +521,14 @@ function renderContent(DB) {
                 <td>${s.played}</td>
                 <td><strong>${s.points}</strong></td>
                 <td>${s.pins}</td>
-              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>דירוג אישי</h2>
+        <h2>${t('playerStandingsTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>משחקים</th><th>ממוצע</th><th>ציון גבוה</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayer')}</th><th>${t('colTeam')}</th><th>${t('colGames')}</th><th>${t('colAvg')}</th><th>${t('colHighScore')}</th></tr></thead>
           <tbody>
             ${playerStandings.length ? playerStandings.map((s, i) => `
               <tr class="${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : ''}">
@@ -369,14 +538,14 @@ function renderContent(DB) {
                 <td>${s.games}</td>
                 <td><strong>${s.avg.toFixed(1)}</strong></td>
                 <td>${s.high}</td>
-              </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x2B50; נבחרת המחזור${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
+        <h2>${t('roundAllStarsTitle')}${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ניקוד סדרה</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayer')}</th><th>${t('colTeam')}</th><th>${t('colSeriesScore')}</th></tr></thead>
           <tbody>
             ${roundAllStars.length ? roundAllStars.map((e, i) => `
               <tr class="${rankClass(i)}">
@@ -384,14 +553,14 @@ function renderContent(DB) {
                 <td>${playerName(e.pid)}</td>
                 <td>${teamCell(e.pid)}</td>
                 <td><strong>${e.total}</strong></td>
-              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x1F4CB; כל המשחקים מהמחזור האחרון${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
+        <h2>${t('lastRoundGamesTitle')}${latestDate ? ' — ' + fmtDate(latestDate) : ''}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>קבוצה א׳</th><th>קבוצה ב׳</th><th>פינים</th><th>נקודות</th></tr></thead>
+          <thead><tr><th>${t('colTeamA')}</th><th>${t('colTeamB')}</th><th>${t('colPins')}</th><th>${t('colPoints')}</th></tr></thead>
           <tbody>
             ${lastRoundResults.length ? lastRoundResults.map(r => {
               const aPins = (r.games || []).reduce((s, g) => s + gameTotal(g, 'A'), 0);
@@ -402,14 +571,14 @@ function renderContent(DB) {
                 <td>${aPins} : ${bPins}</td>
                 <td><span class="badge">${r.teamAPoints} : ${r.teamBPoints}</span></td>
               </tr>`;
-            }).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+            }).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x1F3AF; שיא אישי למשחק בודד</h2>
+        <h2>${t('singleGameHighTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ציון</th><th>תאריך</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayer')}</th><th>${t('colTeam')}</th><th>${t('colScore')}</th><th>${t('colDate')}</th></tr></thead>
           <tbody>
             ${topSingleGames.length ? topSingleGames.map((e, i) => `
               <tr class="${rankClass(i)}">
@@ -418,30 +587,30 @@ function renderContent(DB) {
                 <td>${teamCell(e.pid)}</td>
                 <td><strong>${e.score}</strong></td>
                 <td>${fmtDate(e.date)}</td>
-              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x1F3C6; שיא אישי לסדרה</h2>
+        <h2>${t('seriesHighTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקן</th><th>קבוצה</th><th>ציון סדרה</th><th>תאריך</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayer')}</th><th>${t('colTeam')}</th><th>${t('colSeriesScore')}</th><th>${t('colDate')}</th></tr></thead>
           <tbody>
             ${topSeries.length ? topSeries.map((e, i) => `
               <tr class="${rankClass(i)}">
                 <td>${i + 1}</td>
                 <td>${playerName(e.pid)}</td>
                 <td>${teamCell(e.pid)}</td>
-                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">(${e.gamesCount} משחקים)</span></td>
+                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">${tf('gamesCountSuffix', { n: e.gamesCount })}</span></td>
                 <td>${fmtDate(e.date)}</td>
-              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x1F3C5; שיא קבוצתי לסדרה</h2>
+        <h2>${t('teamSeriesHighTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>קבוצה</th><th>סה"כ פינים</th><th>תאריך</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colTeam')}</th><th>${t('colTotalPins')}</th><th>${t('colDate')}</th></tr></thead>
           <tbody>
             ${topTeamSeries.length ? topTeamSeries.map((e, i) => `
               <tr class="${rankClass(i)}">
@@ -449,15 +618,15 @@ function renderContent(DB) {
                 <td><span class="color-dot" style="background:${teamColor(e.teamId)}"></span>${teamName(e.teamId)}</td>
                 <td><strong>${e.total}</strong></td>
                 <td>${fmtDate(e.date)}</td>
-              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       ${womenCount >= 2 ? `
       <div class="card">
-        <h2>&#x1F3AF; שיא אישי למשחק בודד — נשים</h2>
+        <h2>${t('singleGameHighWomenTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקנית</th><th>קבוצה</th><th>ציון</th><th>תאריך</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayerF')}</th><th>${t('colTeam')}</th><th>${t('colScore')}</th><th>${t('colDate')}</th></tr></thead>
           <tbody>
             ${topSingleGamesWomen.length ? topSingleGamesWomen.map((e, i) => `
               <tr class="${rankClass(i)}">
@@ -466,23 +635,23 @@ function renderContent(DB) {
                 <td>${teamCell(e.pid)}</td>
                 <td><strong>${e.score}</strong></td>
                 <td>${fmtDate(e.date)}</td>
-              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
       <div class="card">
-        <h2>&#x1F3C6; שיא אישי לסדרה — נשים</h2>
+        <h2>${t('seriesHighWomenTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>שחקנית</th><th>קבוצה</th><th>ציון סדרה</th><th>תאריך</th></tr></thead>
+          <thead><tr><th>${t('colRank')}</th><th>${t('colPlayerF')}</th><th>${t('colTeam')}</th><th>${t('colSeriesScore')}</th><th>${t('colDate')}</th></tr></thead>
           <tbody>
             ${topSeriesWomen.length ? topSeriesWomen.map((e, i) => `
               <tr class="${rankClass(i)}">
                 <td>${i + 1}</td>
                 <td>${playerName(e.pid)}</td>
                 <td>${teamCell(e.pid)}</td>
-                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">(${e.gamesCount} משחקים)</span></td>
+                <td><strong>${e.total}</strong> <span style="font-size:11px;color:#94A3B8;">${tf('gamesCountSuffix', { n: e.gamesCount })}</span></td>
                 <td>${fmtDate(e.date)}</td>
-              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">אין נתונים עדיין</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#94A3B8;">${t('noDataYet')}</td></tr>`}
           </tbody>
         </table></div>
       </div>` : ''}
@@ -490,9 +659,9 @@ function renderContent(DB) {
 
     <div class="section" id="section-schedule">
       <div class="card">
-        <h2>משחקים קרובים</h2>
+        <h2>${t('upcomingGamesTitle')}</h2>
         <div class="table-wrap"><table>
-          <thead><tr><th>תאריך</th><th>שעה</th><th>מסלול</th><th>מחזור</th><th>קבוצה א׳</th><th>קבוצה ב׳</th></tr></thead>
+          <thead><tr><th>${t('colDate')}</th><th>${t('colTime')}</th><th>${t('colLane')}</th><th>${t('colRound')}</th><th>${t('colTeamA')}</th><th>${t('colTeamB')}</th></tr></thead>
           <tbody>
             ${upcoming.length ? upcoming.map(s => `
               <tr>
@@ -502,7 +671,7 @@ function renderContent(DB) {
                 <td>${s.round || '—'}</td>
                 <td>${teamName(s.teamAId)}</td>
                 <td>${teamName(s.teamBId)}</td>
-              </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#94A3B8;">אין משחקים מתוכננים</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#94A3B8;">${t('noGamesScheduled')}</td></tr>`}
           </tbody>
         </table></div>
       </div>
@@ -511,8 +680,8 @@ function renderContent(DB) {
     <div class="section" id="section-results">
       ${resultRoundDates.length ? `
       <div class="card" style="margin-bottom:20px;">
-        <label style="font-size:13px; font-weight:600; color:#0C4A6E;">בחר מחזור:</label>
-        <select id="results-round-select" onchange="switchResultsRound(this.value)" style="margin-right:8px; padding:6px 10px; border-radius:8px; border:1px solid #CBD5E1; font-family:inherit; font-size:14px;">
+        <label style="font-size:13px; font-weight:600; color:#0C4A6E;">${t('selectRound')}</label>
+        <select id="results-round-select" onchange="switchResultsRound(this.value)" style="margin-inline-start:8px; padding:6px 10px; border-radius:8px; border:1px solid #CBD5E1; font-family:inherit; font-size:14px;">
           ${resultRoundDates.map(d => `<option value="${d}" ${d === resultRoundDates[0] ? 'selected' : ''}>${fmtDate(d)}</option>`).join('')}
         </select>
       </div>` : ''}
@@ -532,28 +701,26 @@ function switchTab(name) {
 }
 
 async function boot() {
-  document.getElementById('footer-year').textContent = new Date().getFullYear();
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'he';
+  document.documentElement.dir = LANG === 'en' ? 'ltr' : 'rtl';
+  document.querySelectorAll('.lang-switch button').forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
+  renderHeaderTexts();
 
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
-    document.getElementById('content').innerHTML = `
-      <div class="config-msg">
-        &#x26A0;&#xFE0F; העמוד עדיין לא מחובר לנתוני הליגה.<br><br>
-        יש להשלים את אובייקט <code>FIREBASE_CONFIG</code> בקובץ <code>index.html</code>
-        עם אותם הפרטים שהוזנו בעמוד הניהול (admin.html).
-      </div>`;
+    document.getElementById('content').innerHTML = `<div class="config-msg">${t('notConfigured')}</div>`;
     return;
   }
 
   const sdkLoaded = await loadFirebaseSDK();
   if (!sdkLoaded) {
-    document.getElementById('content').innerHTML = `<div class="config-msg">&#x26A0;&#xFE0F; לא ניתן היה לטעון את נתוני הליגה — בדוק חיבור לאינטרנט ונסה לרענן.</div>`;
+    document.getElementById('content').innerHTML = `<div class="config-msg">${t('sdkLoadFail')}</div>`;
     return;
   }
 
   try {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const fdb = firebase.firestore();
-    const [t, p, s, r, cfg] = await Promise.all([
+    const [t2, p, s, r, cfg] = await Promise.all([
       fdb.collection('teams').get(),
       fdb.collection('players').get(),
       fdb.collection('schedule').get(),
@@ -561,17 +728,15 @@ async function boot() {
       fdb.collection('settings').doc('config').get()
     ]);
     const settings = cfg.exists ? cfg.data() : {};
+    LEAGUE_SETTINGS = settings;
     if (cfg.exists) {
-      if (settings.leagueName) {
-        document.getElementById('league-name').textContent = settings.leagueName + ' (DEMO)';
-        document.title = settings.leagueName + ' — DEMO';
-      }
       if (settings.logoData) {
         document.getElementById('league-logo').innerHTML = `<img src="${settings.logoData}" alt="">`;
       }
     }
+    renderHeaderTexts();
     renderContent({
-      teams: t.docs.map(d => d.data()),
+      teams: t2.docs.map(d => d.data()),
       players: p.docs.map(d => d.data()),
       schedule: s.docs.map(d => d.data()),
       results: r.docs.map(d => d.data()),
@@ -579,7 +744,7 @@ async function boot() {
     });
   } catch(e) {
     console.warn('Load error:', e.message);
-    document.getElementById('content').innerHTML = `<div class="config-msg">&#x26A0;&#xFE0F; שגיאה בטעינת נתוני הליגה. נסה לרענן את הדף מאוחר יותר.</div>`;
+    document.getElementById('content').innerHTML = `<div class="config-msg">${t('loadError')}</div>`;
   }
 }
 
